@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CharaCast Desktop</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Chara<span>Cast</span> Desktop</div>
+  <div class="version">v0.1.0</div>
+</div>
+
+<div class="container">
+  <!-- Pair view(沒 token 時顯示) -->
+  <section id="view-pair" class="view" style="display:none">
+    <h2>配對 CharaCast 帳號</h2>
+    <p class="hint">
+      請先到 <code>https://characast-core.onrender.com/app.html</code> 登入,
+      找「🖥️ Desktop Client」面板,點「產生配對碼」拿到 6 位碼,輸入下方。
+    </p>
+    <label>配對碼</label>
+    <input id="pair-input" type="text" maxlength="6" placeholder="如:K2P7AB" autocomplete="off">
+    <button id="pair-btn">配對</button>
+    <div id="pair-msg" class="msg" style="display:none"></div>
+  </section>
+
+  <!-- Status view(有 token 時顯示) -->
+  <section id="view-status" class="view" style="display:none">
+    <div class="status-grid">
+      <div class="status-card">
+        <div class="card-title">CharaCast Cloud</div>
+        <div class="card-pill" id="cloud-pill">—</div>
+        <div class="card-meta" id="cloud-meta">—</div>
+        <button class="ghost" id="cloud-reconnect">重連</button>
+      </div>
+      <div class="status-card">
+        <div class="card-title">OBS WebSocket</div>
+        <div class="card-pill" id="obs-pill">—</div>
+        <div class="card-meta" id="obs-meta">—</div>
+        <button class="ghost" id="obs-reconnect">重連</button>
+      </div>
+    </div>
+
+    <details class="settings">
+      <summary>OBS 連線設定</summary>
+      <div class="settings-body">
+        <label>Host</label>
+        <input id="obs-host" type="text" placeholder="localhost">
+        <label>Port</label>
+        <input id="obs-port" type="number" placeholder="4455">
+        <label>Password(OBS WebSocket 設定的)</label>
+        <input id="obs-password" type="password" placeholder="若沒設可空">
+        <button id="obs-save">儲存 + 重連</button>
+      </div>
+    </details>
+
+    <details class="settings">
+      <summary>進階</summary>
+      <div class="settings-body">
+        <label>Cloud WebSocket URL</label>
+        <input id="cloud-url" type="text">
+        <label>Cloud HTTPS URL(配對換 token 用)</label>
+        <input id="cloud-https-url" type="text">
+        <button id="cloud-save">儲存</button>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--rule)">
+          <button class="danger" id="revoke-btn">撤銷本機配對(重來)</button>
+        </div>
+      </div>
+    </details>
+
+    <div class="log-section">
+      <div class="log-header">📜 即時 log</div>
+      <div id="log-list" class="log-list"></div>
+    </div>
+  </section>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
