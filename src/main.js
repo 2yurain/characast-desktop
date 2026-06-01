@@ -10,6 +10,7 @@ const settings = require('./lib/settings');
 const { CloudClient } = require('./lib/cloudClient');
 const { ObsClient } = require('./lib/obsClient');
 const { Relay } = require('./lib/relay');
+const { autoUpdater } = require('electron-updater');
 
 // 全域單例
 const cloud = new CloudClient();
@@ -159,6 +160,14 @@ app.whenReady().then(() => {
     reconnectCloud();
     reconnectObs();
   }, 500);
+
+  // 自動更新(從 GitHub Releases 抓 latest.yml;dev 模式會略過)
+  autoUpdater.on('update-available', (info) => pushLog({ level: 'info', msg: `有新版 ${info.version},背景下載中…` }));
+  autoUpdater.on('update-not-available', () => pushLog({ level: 'info', msg: '已是最新版' }));
+  autoUpdater.on('error', (e) => pushLog({ level: 'warn', msg: `更新檢查失敗:${e?.message || e}` }));
+  autoUpdater.on('update-downloaded', (info) => pushLog({ level: 'info', msg: `新版 ${info.version} 已下載,下次開啟自動更新` }));
+  try { autoUpdater.checkForUpdatesAndNotify(); }
+  catch (e) { pushLog({ level: 'warn', msg: `更新檢查例外:${e.message}` }); }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

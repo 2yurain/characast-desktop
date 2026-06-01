@@ -1,6 +1,6 @@
 {
   "name": "characast-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "CharaCast Desktop Client — bridge between cloud bot and local OBS / TTS / VTube Studio",
   "main": "src/main.js",
@@ -17,6 +17,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "electron-store": "^8.2.0",
+    "electron-updater": "^6.8.3",
     "obs-websocket-js": "^5.0.6",
     "ws": "^8.18.0"
   },
@@ -30,6 +31,9 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      { "provider": "github", "owner": "2yurain", "repo": "characast-desktop" }
+    ],
     "files": [
       "src/**/*",
       "assets/**/*",
