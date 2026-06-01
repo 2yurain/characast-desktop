@@ -89,6 +89,34 @@ button.danger { background: transparent; color: var(--err); border: 1px solid #5
 .settings summary { cursor: pointer; color: var(--text-dim); font-weight: 600; font-size: 13px }
 .settings summary:hover { color: var(--accent) }
 .settings-body { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--rule) }
+.howto {
+  background: rgba(255, 184, 77, 0.06);
+  border: 1px solid rgba(255, 184, 77, 0.25);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.howto-title { color: var(--accent); font-weight: 600; font-size: 12px; margin-bottom: 8px }
+.howto-list { margin: 0 0 8px 22px; padding: 0; color: var(--text-dim); font-size: 12px; line-height: 1.7 }
+.howto-list li { margin-bottom: 4px }
+.howto-list strong { color: var(--text); font-weight: 600 }
+.howto-list a { color: var(--accent) }
+.howto-list code { background: var(--panel-2); padding: 1px 5px; border-radius: 3px; color: var(--accent); font-size: 11px }
+.howto-note { color: var(--text-mute); font-size: 11px; font-style: italic }
+
+/* obs 卡片顯示警告時加強樣式 */
+.status-card.error-state {
+  border-color: rgba(255, 118, 118, 0.4);
+  background: rgba(255, 118, 118, 0.03);
+}
+.status-card .hint-link {
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-top: 8px;
+  display: inline-block;
+}
 
 /* Log */
 .log-section { margin-top: 18px }

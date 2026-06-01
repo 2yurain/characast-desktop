@@ -61,10 +61,30 @@ async function refreshStatusCards(s) {
   $('cloud-meta').textContent = s.cloud.connectedAt ? `已連 ${fmtTime(s.cloud.connectedAt)}` : '';
 
   // OBS
-  if (s.obs.connected) setPill($('obs-pill'), 'connected', '🟢 已連線');
-  else setPill($('obs-pill'), 'error', `🔴 斷線(重試 ${s.obs.reconnectAttempt})`);
+  const card = $('obs-card');
+  if (s.obs.connected) {
+    setPill($('obs-pill'), 'connected', '🟢 已連線');
+    card.classList.remove('error-state');
+    $('obs-hint-link').style.display = 'none';
+  } else {
+    setPill($('obs-pill'), 'error', `🔴 斷線(重試 ${s.obs.reconnectAttempt})`);
+    card.classList.add('error-state');
+    $('obs-hint-link').style.display = '';
+  }
   $('obs-meta').textContent = s.obs.config ? `${s.obs.config.host}:${s.obs.config.port}` : '';
 }
+
+// 點「→ 怎麼設定 OBS?」直接展開設定區塊 + 捲過去
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.id === 'obs-hint-link') {
+    e.preventDefault();
+    const det = document.getElementById('obs-settings');
+    if (det) {
+      det.open = true;
+      det.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+});
 
 window.characast.onStatus((s) => refreshStatusCards(s));
 

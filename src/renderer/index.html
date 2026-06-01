@@ -36,23 +36,37 @@
         <div class="card-meta" id="cloud-meta">—</div>
         <button class="ghost" id="cloud-reconnect">重連</button>
       </div>
-      <div class="status-card">
+      <div class="status-card" id="obs-card">
         <div class="card-title">OBS WebSocket</div>
         <div class="card-pill" id="obs-pill">—</div>
         <div class="card-meta" id="obs-meta">—</div>
         <button class="ghost" id="obs-reconnect">重連</button>
+        <span class="hint-link" id="obs-hint-link" style="display:none">→ 怎麼設定 OBS?</span>
       </div>
     </div>
 
-    <details class="settings">
-      <summary>OBS 連線設定</summary>
+    <details class="settings" id="obs-settings">
+      <summary>⚙️ OBS 連線設定</summary>
       <div class="settings-body">
+        <div class="howto">
+          <div class="howto-title">📖 第一次設定怎麼做(3 步)</div>
+          <ol class="howto-list">
+            <li>開 <strong>OBS Studio</strong>(沒裝 → <a href="https://obsproject.com" target="_blank">下載</a>)</li>
+            <li>上方選單 <strong>Tools / 工具</strong> → <strong>WebSocket Server Settings</strong>
+              → 勾 <strong>Enable WebSocket Server</strong>
+              → 點 <strong>Show Connect Info</strong>
+              → 複製 <strong>Server Password</strong>
+            </li>
+            <li>把密碼貼到下方 <code>Password</code> 欄 → 點「儲存 + 重連」</li>
+          </ol>
+          <div class="howto-note">沒密碼也可選 "Disable Authentication" 不要設密碼,本機跑這樣最簡單。</div>
+        </div>
         <label>Host</label>
         <input id="obs-host" type="text" placeholder="localhost">
         <label>Port</label>
         <input id="obs-port" type="number" placeholder="4455">
-        <label>Password(OBS WebSocket 設定的)</label>
-        <input id="obs-password" type="password" placeholder="若沒設可空">
+        <label>Password(從 OBS Show Connect Info 複製)</label>
+        <input id="obs-password" type="password" placeholder="若 OBS 沒設密碼可空">
         <button id="obs-save">儲存 + 重連</button>
       </div>
     </details>
