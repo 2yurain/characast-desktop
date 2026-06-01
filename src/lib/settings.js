@@ -11,8 +11,8 @@ const Store = require('electron-store');
 
 const store = new Store({
   defaults: {
-    cloudUrl: 'wss://characast-core.onrender.com/api/v1/desktop/ws',
-    cloudHttpsUrl: 'https://characast-core.onrender.com',
+    cloudUrl: 'wss://characast.co/api/v1/desktop/ws',
+    cloudHttpsUrl: 'https://characast.co',
     desktopToken: null,
     obs: {
       host: 'localhost',
