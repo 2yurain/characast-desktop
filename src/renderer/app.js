@@ -251,9 +251,31 @@ function speak({ text, voice, rate, pitch }) {
   window.speechSynthesis.speak(u);
 }
 
+// Azure 雲端合成的 mp3:用 <audio> 播(繞掉 Web Speech 引擎/voices 問題)
+let _ttsAudio = null;
+function playAudio({ audioBase64, mime }) {
+  if (!audioBase64) { ttsLog('err', 'tts.audio 沒有音檔資料'); return; }
+  try {
+    if (_ttsAudio) { try { _ttsAudio.pause(); } catch {} _ttsAudio = null; }
+    const a = new Audio(`data:${mime || 'audio/mpeg'};base64,${audioBase64}`);
+    _ttsAudio = a;
+    a.onplay = () => ttsLog('info', 'Azure 音檔開始播');
+    a.onended = () => { if (_ttsAudio === a) _ttsAudio = null; };
+    a.onerror = () => ttsLog('err', `音檔播放失敗(code=${a.error?.code ?? '?'})`);
+    a.play().catch((e) => ttsLog('err', `play() 失敗:${e.message}(可能是自動播放政策 → 先點一下「🔊 啟用語音」)`));
+  } catch (e) {
+    ttsLog('err', `playAudio 例外:${e.message}`);
+  }
+}
+
 window.characast.onTts((msg) => {
-  ttsLog('info', `收到 tts.say "${String(msg.text || '').slice(0, 30)}"`);
-  speak({ text: msg.text, voice: msg.voice, rate: msg.rate, pitch: msg.pitch });
+  if (msg.type === 'tts.audio') {
+    ttsLog('info', '收到 tts.audio(Azure mp3)');
+    playAudio(msg);
+  } else {
+    ttsLog('info', `收到 tts.say "${String(msg.text || '').slice(0, 30)}"`);
+    speak({ text: msg.text, voice: msg.voice, rate: msg.rate, pitch: msg.pitch });
+  }
 });
 
 // 「🔊 啟用語音」+「測試播放」按鈕

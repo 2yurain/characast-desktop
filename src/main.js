@@ -144,9 +144,9 @@ app.whenReady().then(() => {
   relay = new Relay({
     obs, cloud, onLog: pushLog,
     onTts: (msg) => {
-      // 把 tts.say 廣播給 renderer 用 Web Speech API 播
+      // 把 TTS 訊息(tts.say / tts.audio)轉給 renderer;renderer 依 msg.type 分流
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('tts.say', msg);
+        mainWindow.webContents.send('tts', msg);
       }
     },
   });

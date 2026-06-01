@@ -51,9 +51,12 @@ class Relay {
       if (msg.type === 'obs.set_scene') {
         const ok = await this.obs.setScene(msg.scene);
         this.onLog({ level: 'info', msg: `relay ← cloud: set_scene ${msg.scene} ${ok ? 'OK' : 'FAIL'}` });
-      } else if (msg.type === 'tts.say') {
-        // Phase 4:轉發給 renderer 用 Web Speech API 播
-        this.onLog({ level: 'info', msg: `relay ← cloud: tts.say "${(msg.text || '').slice(0, 60)}"` });
+      } else if (msg.type === 'tts.say' || msg.type === 'tts.audio') {
+        // tts.say  = Web Speech(client 端合成);tts.audio = Azure 雲端合成的 mp3
+        const detail = msg.type === 'tts.audio'
+          ? `${Math.round((msg.audioBase64 || '').length * 0.75 / 1024)}KB mp3`
+          : `"${(msg.text || '').slice(0, 60)}"`;
+        this.onLog({ level: 'info', msg: `relay ← cloud: ${msg.type} ${detail}` });
         this.onTts?.(msg);
       }
     });
