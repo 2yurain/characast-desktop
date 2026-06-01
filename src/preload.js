@@ -23,4 +23,11 @@ contextBridge.exposeInMainWorld('characast', {
     ipcRenderer.on('status', handler);
     return () => ipcRenderer.removeListener('status', handler);
   },
+  onTts: (cb) => {
+    const handler = (_e, msg) => cb(msg);
+    ipcRenderer.on('tts.say', handler);
+    return () => ipcRenderer.removeListener('tts.say', handler);
+  },
+  // 為了取得 TTS 設定(從 cloud 拉),我們直接讓 main 用 HTTPS 拿
+  fetchTtsConfig: () => ipcRenderer.invoke('tts:get-config'),
 });

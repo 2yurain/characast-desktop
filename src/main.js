@@ -141,7 +141,15 @@ app.whenReady().then(() => {
   obs.on('status', broadcastStatus);
 
   // 串接 relay
-  relay = new Relay({ obs, cloud, onLog: pushLog });
+  relay = new Relay({
+    obs, cloud, onLog: pushLog,
+    onTts: (msg) => {
+      // 把 tts.say 廣播給 renderer 用 Web Speech API 播
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('tts.say', msg);
+      }
+    },
+  });
   relay.start();
 
   createWindow();

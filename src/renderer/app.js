@@ -170,6 +170,36 @@ function escapeHtml(s) {
 
 window.characast.onLog(appendLog);
 
+// ============== TTS 播音(Web Speech API)==============
+let _availableVoices = [];
+function refreshVoices() {
+  _availableVoices = window.speechSynthesis.getVoices() || [];
+}
+if (window.speechSynthesis) {
+  refreshVoices();
+  window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
+}
+function speak({ text, voice, rate, pitch }) {
+  if (!window.speechSynthesis || !text) return;
+  try { window.speechSynthesis.cancel(); } catch {}
+  const u = new SpeechSynthesisUtterance(String(text));
+  u.rate = Number(rate) || 1.0;
+  u.pitch = Number(pitch) || 1.0;
+  // 嘗試找指定 voice;沒指定就讓系統挑(優先中文)
+  if (voice) {
+    const v = _availableVoices.find((vv) => vv.name === voice || vv.name.toLowerCase().includes(String(voice).toLowerCase()));
+    if (v) u.voice = v;
+  } else {
+    const v = _availableVoices.find((vv) => /zh-TW|zh-Hant|zh_TW/i.test(vv.lang))
+          || _availableVoices.find((vv) => /^zh/i.test(vv.lang));
+    if (v) u.voice = v;
+  }
+  window.speechSynthesis.speak(u);
+}
+window.characast.onTts((msg) => {
+  speak({ text: msg.text, voice: msg.voice, rate: msg.rate, pitch: msg.pitch });
+});
+
 // init
 (async () => {
   await applyView();

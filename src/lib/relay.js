@@ -7,10 +7,11 @@
 // =====================================================
 
 class Relay {
-  constructor({ obs, cloud, onLog }) {
+  constructor({ obs, cloud, onLog, onTts }) {
     this.obs = obs;
     this.cloud = cloud;
     this.onLog = onLog || (() => {});
+    this.onTts = onTts || (() => {});
     this._micMutedSince = null;
   }
 
@@ -51,8 +52,9 @@ class Relay {
         const ok = await this.obs.setScene(msg.scene);
         this.onLog({ level: 'info', msg: `relay ← cloud: set_scene ${msg.scene} ${ok ? 'OK' : 'FAIL'}` });
       } else if (msg.type === 'tts.say') {
-        // TODO Phase 4:呼叫 TTS engine
-        this.onLog({ level: 'info', msg: `relay ← cloud: tts.say "${(msg.text || '').slice(0, 60)}"(TTS 未實作)` });
+        // Phase 4:轉發給 renderer 用 Web Speech API 播
+        this.onLog({ level: 'info', msg: `relay ← cloud: tts.say "${(msg.text || '').slice(0, 60)}"` });
+        this.onTts?.(msg);
       }
     });
   }
