@@ -74,19 +74,37 @@ async function refreshStatusCards(s) {
   $('obs-meta').textContent = s.obs.config ? `${s.obs.config.host}:${s.obs.config.port}` : '';
 }
 
-// 點「→ 怎麼設定 OBS?」直接展開設定區塊 + 捲過去
+// 點「→ 怎麼設定 OBS?」切到 OBS tab + 捲到 howto
 document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'obs-hint-link') {
     e.preventDefault();
-    const det = document.getElementById('obs-settings');
-    if (det) {
-      det.open = true;
-      det.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    switchTab('obs');
+    setTimeout(() => {
+      const h = document.querySelector('.howto');
+      h?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
   }
 });
 
-window.characast.onStatus((s) => refreshStatusCards(s));
+// Tab 切換
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach((p) => p.classList.toggle('active', p.dataset.tab === name));
+}
+document.querySelectorAll('.tab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+window.characast.onStatus((s) => {
+  refreshStatusCards(s);
+  // 同步更新帳號 tab 的狀態
+  const accEl = $('account-status');
+  if (accEl) {
+    if (s.cloud.authed) accEl.textContent = '✓ 已連線 + 認證';
+    else if (s.hasToken) accEl.textContent = '已配對(連線中…)';
+    else accEl.textContent = '未配對';
+  }
+});
 
 $('cloud-reconnect').addEventListener('click', () => window.characast.reconnectCloud());
 $('obs-reconnect').addEventListener('click', () => window.characast.reconnectObs());
@@ -99,6 +117,14 @@ async function fillSettingsForm() {
   $('obs-password').value = s.obs?.password || '';
   $('cloud-url').value = s.cloudUrl || '';
   $('cloud-https-url').value = s.cloudHttpsUrl || '';
+  // 帳號 tab:顯示「已配對」狀態
+  const status = await window.characast.getStatus();
+  const accEl = $('account-status');
+  if (accEl) {
+    if (status.cloud.authed) accEl.textContent = '✓ 已連線 + 認證';
+    else if (status.hasToken) accEl.textContent = '已配對(連線中…)';
+    else accEl.textContent = '未配對';
+  }
 }
 
 $('obs-save').addEventListener('click', async () => {

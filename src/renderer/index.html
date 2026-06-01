@@ -29,6 +29,8 @@
 
   <!-- Status view(有 token 時顯示) -->
   <section id="view-status" class="view" style="display:none">
+
+    <!-- 連線狀態(永遠最上)-->
     <div class="status-grid">
       <div class="status-card">
         <div class="card-title">CharaCast Cloud</div>
@@ -45,46 +47,74 @@
       </div>
     </div>
 
-    <details class="settings" id="obs-settings">
-      <summary>⚙️ OBS 連線設定</summary>
-      <div class="settings-body">
-        <div class="howto">
-          <div class="howto-title">📖 第一次設定怎麼做(3 步)</div>
-          <ol class="howto-list">
-            <li>開 <strong>OBS Studio</strong>(沒裝 → <a href="https://obsproject.com" target="_blank">下載</a>)</li>
-            <li>上方選單 <strong>Tools / 工具</strong> → <strong>WebSocket Server Settings</strong>
-              → 勾 <strong>Enable WebSocket Server</strong>
-              → 點 <strong>Show Connect Info</strong>
-              → 複製 <strong>Server Password</strong>
-            </li>
-            <li>把密碼貼到下方 <code>Password</code> 欄 → 點「儲存 + 重連」</li>
-          </ol>
-          <div class="howto-note">沒密碼也可選 "Disable Authentication" 不要設密碼,本機跑這樣最簡單。</div>
+    <!-- Tabs:OBS / 進階 / 帳號 -->
+    <div class="tabs-nav" role="tablist">
+      <button class="tab-btn active" data-tab="obs">🎬 OBS</button>
+      <button class="tab-btn" data-tab="account">👤 帳號</button>
+      <button class="tab-btn" data-tab="advanced">⚙️ 進階</button>
+    </div>
+
+    <!-- Tab: OBS -->
+    <div class="tab-pane active" data-tab="obs">
+      <div class="howto">
+        <div class="howto-title">📖 第一次設定怎麼做(3 步)</div>
+        <ol class="howto-list">
+          <li>開 <strong>OBS Studio</strong>(沒裝 → <a href="https://obsproject.com" target="_blank">下載</a>)</li>
+          <li>上方選單 <strong>Tools / 工具</strong> → <strong>WebSocket Server Settings</strong>
+            → 勾 <strong>Enable WebSocket Server</strong>
+            → 點 <strong>Show Connect Info</strong>
+            → 複製 <strong>Server Password</strong>
+          </li>
+          <li>把密碼貼到下方 <code>Password</code> 欄 → 點「儲存 + 重連」</li>
+        </ol>
+        <div class="howto-note">⚠ 注意:「隱藏」audio source(眼睛 icon)不是「靜音」。靜音才會觸發 — 點 input 旁邊的喇叭 icon 才對。</div>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label>Host</label>
+          <input id="obs-host" type="text" placeholder="localhost">
         </div>
-        <label>Host</label>
-        <input id="obs-host" type="text" placeholder="localhost">
-        <label>Port</label>
-        <input id="obs-port" type="number" placeholder="4455">
-        <label>Password(從 OBS Show Connect Info 複製)</label>
-        <input id="obs-password" type="password" placeholder="若 OBS 沒設密碼可空">
+        <div class="form-col">
+          <label>Port</label>
+          <input id="obs-port" type="number" placeholder="4455">
+        </div>
+      </div>
+      <label>Password</label>
+      <input id="obs-password" type="password" placeholder="從 OBS Show Connect Info 複製,沒設可空">
+      <div class="form-actions">
         <button id="obs-save">儲存 + 重連</button>
       </div>
-    </details>
+    </div>
 
-    <details class="settings">
-      <summary>進階</summary>
-      <div class="settings-body">
-        <label>Cloud WebSocket URL</label>
-        <input id="cloud-url" type="text">
-        <label>Cloud HTTPS URL(配對換 token 用)</label>
-        <input id="cloud-https-url" type="text">
-        <button id="cloud-save">儲存</button>
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--rule)">
-          <button class="danger" id="revoke-btn">撤銷本機配對(重來)</button>
+    <!-- Tab: 帳號 -->
+    <div class="tab-pane" data-tab="account">
+      <div class="account-info" id="account-info">
+        <div class="info-row">
+          <div class="info-key">已配對</div>
+          <div class="info-val" id="account-status">—</div>
         </div>
       </div>
-    </details>
+      <div class="form-actions">
+        <button class="danger" id="revoke-btn">撤銷本機配對</button>
+      </div>
+      <div class="hint" style="margin-top:10px">
+        撤銷後本機 token 會刪,下次開要重新到後台拿配對碼。換電腦時用得到。
+      </div>
+    </div>
 
+    <!-- Tab: 進階 -->
+    <div class="tab-pane" data-tab="advanced">
+      <div class="hint">大部分人不用動。除非用自架 cloud / staging。</div>
+      <label>Cloud WebSocket URL</label>
+      <input id="cloud-url" type="text">
+      <label>Cloud HTTPS URL(配對換 token 用)</label>
+      <input id="cloud-https-url" type="text">
+      <div class="form-actions">
+        <button id="cloud-save">儲存</button>
+      </div>
+    </div>
+
+    <!-- Log(永遠在最下面)-->
     <div class="log-section">
       <div class="log-header">📜 即時 log</div>
       <div id="log-list" class="log-list"></div>
