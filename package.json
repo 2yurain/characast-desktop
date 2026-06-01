@@ -32,7 +32,7 @@
       "output": "dist"
     },
     "publish": [
-      { "provider": "github", "owner": "2yurain", "repo": "characast-desktop" }
+      { "provider": "github", "owner": "2yurain", "repo": "characast-desktop", "releaseType": "release" }
     ],
     "files": [
       "src/**/*",
