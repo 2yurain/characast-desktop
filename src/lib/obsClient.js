@@ -78,7 +78,17 @@ class ObsClient extends EventEmitter {
     try {
       await obs.connect(url, this.config.password || undefined);
     } catch (e) {
-      this.emit('log', { level: 'warn', msg: `obs:連線失敗 ${e.message}` });
+      const m = String(e?.message || e);
+      // 偵測常見錯誤,給友善提示
+      if (m.includes('authentication') && !this.config.password) {
+        this.emit('log', { level: 'err', msg: '⚠ OBS 需要密碼:Tools → WebSocket Server Settings → Show Connect Info,複製 Server Password 貼到下方「OBS 連線設定」' });
+      } else if (m.includes('authentication')) {
+        this.emit('log', { level: 'err', msg: '⚠ OBS 密碼錯誤,請從 OBS Tools → WebSocket Server Settings → Show Connect Info 重新複製' });
+      } else if (m.includes('ECONNREFUSED') || m.includes('connect')) {
+        this.emit('log', { level: 'warn', msg: '⚠ OBS WebSocket 沒回應 — 確認 OBS 已開啟 + Tools → WebSocket Server Settings → Enable WebSocket Server 已勾' });
+      } else {
+        this.emit('log', { level: 'warn', msg: `obs:連線失敗 ${m}` });
+      }
       this._scheduleReconnect();
       return;
     }
