@@ -12,6 +12,17 @@
 
 const OBSWebSocket = require('obs-websocket-js').default;
 const EventEmitter = require('events');
+const fs = require('fs');
+const path = require('path');
+
+// 把類別/暱稱清成合法檔名片段(去掉 \ / : * ? " < > | 等),限長度
+function sanitizeForFilename(s) {
+  return String(s || '')
+    .replace(/[\\/:*?"<>|\r\n]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40);
+}
 
 const RECONNECT_BASE_MS = 5_000;
 const RECONNECT_MAX_MS = 60_000;
@@ -81,16 +92,39 @@ class ObsClient extends EventEmitter {
     }
   }
 
-  /** 存重播緩存 → 本機 .mp4。relay 收到 cloud 的 clip.replay 時呼叫。回 { ok, path }。 */
-  async saveReplay() {
+  /**
+   * 存重播緩存 → 本機 .mp4。relay 收到 cloud 的 clip.replay 時呼叫。回 { ok, path }。
+   * category/requester 會加進檔名(參照舊作法,剪輯時帶類別),OBS 本身 SaveReplayBuffer
+   * 不能指定檔名,所以存完拿到路徑後在同資料夾改名:「[類別] 原檔名」(失敗就保留原檔)。
+   */
+  async saveReplay(category, requester) {
     if (!this.connected || !this.obs) return { ok: false, reason: 'obs 未連' };
     try {
       await this.startReplayBuffer(); // 確保在跑(開播時通常已自動起)
       await this.obs.call('SaveReplayBuffer');
-      let path = null;
-      try { const r = await this.obs.call('GetLastReplayBufferReplay'); path = r?.savedReplayPath || null; } catch { /* 舊版可能沒這 request */ }
-      this.emit('log', { level: 'info', msg: `obs:✂️ 重播已存${path ? ' → ' + path : ''}` });
-      return { ok: true, path };
+      let savedPath = null;
+      try { const r = await this.obs.call('GetLastReplayBufferReplay'); savedPath = r?.savedReplayPath || null; } catch { /* 舊版可能沒這 request */ }
+
+      // 改名加上類別(+ 兌換者),例:「[神操作 by 阿明] Replay 2026-06-01 14-32-10.mp4」
+      if (savedPath) {
+        const cat = sanitizeForFilename(category) || '精華';
+        const who = sanitizeForFilename(requester);
+        const tag = `[${cat}${who ? ' by ' + who : ''}]`;
+        try {
+          const dir = path.dirname(savedPath);
+          const base = path.basename(savedPath);
+          const target = path.join(dir, `${tag} ${base}`);
+          if (target !== savedPath && !fs.existsSync(target)) {
+            fs.renameSync(savedPath, target);
+            savedPath = target;
+          }
+        } catch (re) {
+          this.emit('log', { level: 'warn', msg: `obs:重播改名失敗(保留原檔):${re?.message || re}` });
+        }
+      }
+
+      this.emit('log', { level: 'info', msg: `obs:✂️ 重播已存${savedPath ? ' → ' + savedPath : ''}` });
+      return { ok: true, path: savedPath };
     } catch (e) {
       const m = String(e?.message || e);
       this.emit('log', { level: 'err', msg: `obs:存重播失敗(緩存還沒跑滿 / 未啟用?):${m}` });

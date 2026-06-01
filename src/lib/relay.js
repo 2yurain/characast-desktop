@@ -52,10 +52,10 @@ class Relay {
         const ok = await this.obs.setScene(msg.scene);
         this.onLog({ level: 'info', msg: `relay ← cloud: set_scene ${msg.scene} ${ok ? 'OK' : 'FAIL'}` });
       } else if (msg.type === 'clip.replay') {
-        // 雲端叫本機 OBS 存重播緩存(高畫質本地剪輯)
-        this.onLog({ level: 'info', msg: `relay ← cloud: clip.replay ${msg.requester || ''}` });
-        const r = await this.obs.saveReplay();
-        this.onLog({ level: r.ok ? 'info' : 'err', msg: `重播剪輯 ${r.ok ? '成功' : '失敗:' + (r.reason || '')}` });
+        // 雲端叫本機 OBS 存重播緩存(高畫質本地剪輯);category 會寫進檔名
+        this.onLog({ level: 'info', msg: `relay ← cloud: clip.replay 【${msg.category || '精華'}】${msg.requester || ''}` });
+        const r = await this.obs.saveReplay(msg.category, msg.requester);
+        this.onLog({ level: r.ok ? 'info' : 'err', msg: `重播剪輯 ${r.ok ? '成功 → ' + (r.path || '') : '失敗:' + (r.reason || '')}` });
       } else if (msg.type === 'tts.say' || msg.type === 'tts.audio') {
         // tts.say  = Web Speech(client 端合成);tts.audio = Azure 雲端合成的 mp3
         const detail = msg.type === 'tts.audio'
