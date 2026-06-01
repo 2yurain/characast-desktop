@@ -66,6 +66,38 @@ class ObsClient extends EventEmitter {
     }
   }
 
+  /** 啟動重播緩存(冪等;已在跑就略過)。需 OBS 設定→輸出→已啟用「重播緩衝」。 */
+  async startReplayBuffer() {
+    if (!this.connected || !this.obs) return false;
+    try {
+      await this.obs.call('StartReplayBuffer');
+      this.emit('log', { level: 'info', msg: 'obs:重播緩存已啟動' });
+      return true;
+    } catch (e) {
+      const m = String(e?.message || e);
+      if (/active|running|already/i.test(m)) return true; // 已在跑
+      this.emit('log', { level: 'warn', msg: `obs:啟動重播緩存失敗(OBS 設定→輸出→啟用「重播緩衝」?):${m}` });
+      return false;
+    }
+  }
+
+  /** 存重播緩存 → 本機 .mp4。relay 收到 cloud 的 clip.replay 時呼叫。回 { ok, path }。 */
+  async saveReplay() {
+    if (!this.connected || !this.obs) return { ok: false, reason: 'obs 未連' };
+    try {
+      await this.startReplayBuffer(); // 確保在跑(開播時通常已自動起)
+      await this.obs.call('SaveReplayBuffer');
+      let path = null;
+      try { const r = await this.obs.call('GetLastReplayBufferReplay'); path = r?.savedReplayPath || null; } catch { /* 舊版可能沒這 request */ }
+      this.emit('log', { level: 'info', msg: `obs:✂️ 重播已存${path ? ' → ' + path : ''}` });
+      return { ok: true, path };
+    } catch (e) {
+      const m = String(e?.message || e);
+      this.emit('log', { level: 'err', msg: `obs:存重播失敗(緩存還沒跑滿 / 未啟用?):${m}` });
+      return { ok: false, reason: m };
+    }
+  }
+
   async _open() {
     if (!this.config) return;
     if (this.obs) { try { this.obs.disconnect(); } catch {} this.obs = null; }
@@ -122,6 +154,8 @@ class ObsClient extends EventEmitter {
         active: Boolean(data.outputActive),
         state: data.outputState,
       });
+      // 開播自動起重播緩存,之後 !剪輯 才剪得到(緩存要先跑著才有內容)
+      if (data.outputActive) this.startReplayBuffer().catch(() => {});
     });
     obs.on('ConnectionClosed', () => {
       this.connected = false;
