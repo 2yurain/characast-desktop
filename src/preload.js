@@ -5,6 +5,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('characast', {
+  getVersion: () => ipcRenderer.invoke('app:version'),
   getSettings: () => ipcRenderer.invoke('settings:get'),
   setSettings: (patch) => ipcRenderer.invoke('settings:set', patch),
   getStatus: () => ipcRenderer.invoke('status:get'),

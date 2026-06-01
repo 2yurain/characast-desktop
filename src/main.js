@@ -54,6 +54,7 @@ function createWindow() {
 }
 
 // ======= IPC handlers =======
+ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('settings:get', () => settings.all());
 
 ipcMain.handle('settings:set', (_e, patch) => {

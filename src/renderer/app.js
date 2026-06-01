@@ -4,6 +4,11 @@
 
 const $ = (id) => document.getElementById(id);
 
+// 標題列顯示真實版本(不再寫死)
+window.characast.getVersion?.().then((v) => {
+  const el = $('app-version'); if (el && v) el.textContent = 'v' + v;
+}).catch(() => {});
+
 // ============== View 切換 ==============
 async function applyView() {
   const status = await window.characast.getStatus();
