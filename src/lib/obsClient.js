@@ -65,6 +65,45 @@ class ObsClient extends EventEmitter {
     };
   }
 
+  /** 設定某 input 的 mute 狀態 */
+  async setInputMute(inputName, muted) {
+    if (!this.connected || !this.obs) return false;
+    try {
+      await this.obs.call('SetInputMute', { inputName, inputMuted: !!muted });
+      return true;
+    } catch (e) {
+      this.emit('log', { level: 'warn', msg: `obs:SetInputMute 失敗 ${e.message}` });
+      return false;
+    }
+  }
+
+  /** 找出麥克風 input 名:優先用主播切換過的,否則從 input 清單挑音訊擷取類 */
+  async resolveMicInput() {
+    if (this._lastMicInput) return this._lastMicInput;
+    try {
+      const r = await this.obs.call('GetInputList');
+      const mic = (r.inputs || []).find((i) =>
+        /input_capture$/.test(i.inputKind || '') || /mic|麥|aux|voice/i.test(i.inputName || ''));
+      return mic ? mic.inputName : null;
+    } catch { return null; }
+  }
+
+  /** 閉麥主播 N 秒(mute_streamer power):SetInputMute → N 秒後自動解除 */
+  async muteMicFor(seconds, inputName) {
+    if (!this.connected || !this.obs) return { ok: false, reason: 'obs 未連' };
+    const name = inputName || await this.resolveMicInput();
+    if (!name) return { ok: false, reason: '找不到麥克風 input' };
+    const secs = Math.max(1, Math.min(30, Number(seconds) || 5));
+    await this.setInputMute(name, true);
+    this.emit('log', { level: 'info', msg: `obs:🔇 ${name} 閉麥 ${secs}s` });
+    if (this._unmuteTimer) clearTimeout(this._unmuteTimer);
+    this._unmuteTimer = setTimeout(() => {
+      this.setInputMute(name, false).then(() =>
+        this.emit('log', { level: 'info', msg: `obs:🔊 ${name} 解除閉麥` }));
+    }, secs * 1000);
+    return { ok: true, name, secs };
+  }
+
   /** 主動切場景 — relay 從 cloud 收到 obs.set_scene 時呼叫 */
   async setScene(sceneName) {
     if (!this.connected || !this.obs) return false;
@@ -168,6 +207,7 @@ class ObsClient extends EventEmitter {
     // 訂閱事件
     obs.on('InputMuteStateChanged', (data) => {
       // data: { inputName, inputMuted }
+      this._lastMicInput = data.inputName;  // 記住主播實際切換的麥 input,供 mute_streamer power 用
       this.emit('event', {
         type: 'mic.state',
         inputName: data.inputName,

@@ -13,6 +13,7 @@
 //     { type: 'ping' }
 //     { type: 'tts.say', text }
 //     { type: 'obs.set_scene', scene }
+//     { type: 'mic.mute', seconds, inputName? }   // 閉麥主播 power
 // =====================================================
 
 const WebSocket = require('ws');

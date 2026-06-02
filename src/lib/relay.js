@@ -51,6 +51,10 @@ class Relay {
       if (msg.type === 'obs.set_scene') {
         const ok = await this.obs.setScene(msg.scene);
         this.onLog({ level: 'info', msg: `relay ← cloud: set_scene ${msg.scene} ${ok ? 'OK' : 'FAIL'}` });
+      } else if (msg.type === 'mic.mute') {
+        // 觀眾用 power「閉麥主播」→ 本機 OBS 把麥靜音 N 秒後自動解除
+        const r = await this.obs.muteMicFor(msg.seconds, msg.inputName);
+        this.onLog({ level: r.ok ? 'info' : 'warn', msg: `relay ← cloud: mic.mute ${msg.seconds}s ${r.ok ? 'OK ' + r.name : 'FAIL ' + r.reason}` });
       } else if (msg.type === 'clip.replay') {
         // 雲端叫本機 OBS 存重播緩存(高畫質本地剪輯);category 會寫進檔名
         this.onLog({ level: 'info', msg: `relay ← cloud: clip.replay 【${msg.category || '精華'}】${msg.requester || ''}` });
