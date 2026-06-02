@@ -112,16 +112,29 @@
         <div class="form-col"><label>Host</label><input id="vts-host" type="text" placeholder="localhost"></div>
         <div class="form-col"><label>Port</label><input id="vts-port" type="number" placeholder="8001"></div>
       </div>
-      <label style="margin-top:12px;display:block">情緒 → VTS 表情快捷鍵名稱</label>
-      <div class="form-row"><div class="form-col"><label>😊 開心</label><input id="vts-emo-happy" type="text" placeholder="hotkey 名稱"></div>
-        <div class="form-col"><label>😢 難過</label><input id="vts-emo-sad" type="text" placeholder="hotkey 名稱"></div></div>
-      <div class="form-row"><div class="form-col"><label>😲 驚訝</label><input id="vts-emo-surprised" type="text" placeholder="hotkey 名稱"></div>
-        <div class="form-col"><label>😏 吐槽</label><input id="vts-emo-teasing" type="text" placeholder="hotkey 名稱"></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:12px">
+        <label style="margin:0">情緒 → VTS 表情(從你模型的快捷鍵挑)</label>
+        <button class="ghost" id="vts-refresh-hotkeys" style="font-size:12px;padding:4px 10px">↻ 重新讀取表情</button>
+      </div>
+      <div class="form-row"><div class="form-col"><label>😊 開心</label><select id="vts-emo-happy" class="vts-emo"></select></div>
+        <div class="form-col"><label>😢 難過</label><select id="vts-emo-sad" class="vts-emo"></select></div></div>
+      <div class="form-row"><div class="form-col"><label>😲 驚訝</label><select id="vts-emo-surprised" class="vts-emo"></select></div>
+        <div class="form-col"><label>😏 吐槽</label><select id="vts-emo-teasing" class="vts-emo"></select></div></div>
       <label>😐 平常(預設)</label>
-      <input id="vts-emo-neutral" type="text" placeholder="hotkey 名稱">
+      <select id="vts-emo-neutral" class="vts-emo"></select>
+      <div class="hint" id="vts-hotkey-hint" style="margin-top:6px">連線授權後會自動讀取你模型的表情,並依名稱自動配對。</div>
       <div class="form-actions">
         <button id="vts-save">儲存 + 連線</button>
         <button class="ghost" id="vts-reauth">重新授權</button>
+      </div>
+      <label style="margin-top:12px;display:block">本機測試(連線+授權後)</label>
+      <div class="form-actions" style="flex-wrap:wrap;gap:6px">
+        <button class="ghost" data-test-emo="happy">😊 開心</button>
+        <button class="ghost" data-test-emo="sad">😢 難過</button>
+        <button class="ghost" data-test-emo="surprised">😲 驚訝</button>
+        <button class="ghost" data-test-emo="teasing">😏 吐槽</button>
+        <button class="ghost" data-test-emo="neutral">😐 平常</button>
+        <button id="vts-test-mouth">👄 測嘴型</button>
       </div>
     </div>
 

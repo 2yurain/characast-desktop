@@ -137,12 +137,14 @@ async function fillSettingsForm() {
     $('vts-enabled').checked = Boolean(v.enabled);
     $('vts-host').value = v.host || 'localhost';
     $('vts-port').value = v.port || 8001;
+    // 下拉先放「已存的值」(避免 VTS 還沒連上時被洗掉);連上後 onVtsHotkeys 會補完整清單
     const em = v.emotions || {};
-    $('vts-emo-happy').value = em.happy || '';
-    $('vts-emo-sad').value = em.sad || '';
-    $('vts-emo-surprised').value = em.surprised || '';
-    $('vts-emo-teasing').value = em.teasing || '';
-    $('vts-emo-neutral').value = em.neutral || '';
+    for (const slot of EMO_SLOTS) {
+      const sel = $('vts-emo-' + slot); if (!sel) continue;
+      const val = em[slot] || '';
+      sel.innerHTML = '<option value="">（不觸發）</option>' + (val ? `<option value="${escAttr(val)}" selected>${escTxt(val)}</option>` : '');
+      sel.value = val;
+    }
   }
   // 帳號 tab:顯示「已配對」狀態
   const status = await window.characast.getStatus();
@@ -197,6 +199,47 @@ $('vts-save')?.addEventListener('click', async () => {
 $('vts-reauth')?.addEventListener('click', async () => {
   await window.characast.reauthVts();
 });
+document.querySelectorAll('[data-test-emo]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    const r = await window.characast.testVtsExpression(btn.dataset.testEmo);
+    if (!r?.ok) alert(`「${btn.textContent.trim()}」還沒填 VTS 表情快捷鍵名稱(或 neutral 也沒填)`);
+  });
+});
+$('vts-test-mouth')?.addEventListener('click', () => window.characast.testVtsMouth());
+
+// ===== VTS 情緒下拉:從模型表情快捷鍵自動配對 =====
+const EMO_SLOTS = ['happy', 'sad', 'surprised', 'teasing', 'neutral'];
+const EMO_HINTS = {
+  happy: /happy|smile|joy|笑|開心|喜|嗨|love/i,
+  sad: /sad|cry|tear|哭|難過|傷|淚/i,
+  surprised: /surpris|shock|wow|驚|嚇|!/i,
+  teasing: /teas|smug|wink|哼|傲|壞|調皮|嘿/i,
+  neutral: /neutral|default|idle|normal|平常|普通|預設|待機/i,
+};
+const escTxt = (s) => String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+const escAttr = (s) => escTxt(s).replace(/"/g, '&quot;');
+
+async function populateVtsHotkeys(names) {
+  const list = Array.isArray(names) ? names : [];
+  const saved = ((await window.characast.getSettings()).vts || {}).emotions || {};
+  const set = new Set(list);
+  for (const slot of EMO_SLOTS) {
+    const sel = $('vts-emo-' + slot); if (!sel) continue;
+    let pick = saved[slot] || '';
+    if (!pick) { const m = list.find((n) => EMO_HINTS[slot].test(n)); if (m) pick = m; } // 自動猜
+    const opts = ['<option value="">（不觸發）</option>'];
+    if (pick && !set.has(pick)) opts.push(`<option value="${escAttr(pick)}">${escTxt(pick)}(模型目前沒此快捷鍵)</option>`);
+    for (const n of list) opts.push(`<option value="${escAttr(n)}">${escTxt(n)}</option>`);
+    sel.innerHTML = opts.join('');
+    sel.value = pick;
+  }
+  const hint = $('vts-hotkey-hint');
+  if (hint) hint.textContent = list.length
+    ? `讀到 ${list.length} 個表情,已自動配對(可調),記得按「儲存 + 連線」。`
+    : '沒讀到快捷鍵 — 先在 VTS 幫表情建快捷鍵,再點「重新讀取表情」。';
+}
+window.characast.onVtsHotkeys((names) => populateVtsHotkeys(names));
+$('vts-refresh-hotkeys')?.addEventListener('click', () => window.characast.refreshVtsHotkeys());
 
 $('revoke-btn').addEventListener('click', async () => {
   if (!confirm('撤銷本機配對?之後要重新輸入配對碼。')) return;

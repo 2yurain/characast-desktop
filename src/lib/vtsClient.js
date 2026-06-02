@@ -126,14 +126,19 @@ class VtsClient extends EventEmitter {
     await this._refreshHotkeys();
   }
 
+  /** 公開:重新讀取目前模型的表情快捷鍵(UI「重新讀取」用) */
+  async refreshHotkeys() { if (this.authed) await this._refreshHotkeys(); }
+
   async _refreshHotkeys() {
     try {
       const r = await this._send('HotkeysInCurrentModelRequest', {});
       this._hotkeys.clear();
+      const names = [];
       for (const h of (r.availableHotkeys || [])) {
-        if (h.name) this._hotkeys.set(String(h.name).toLowerCase(), h.hotkeyID);
+        if (h.name) { this._hotkeys.set(String(h.name).toLowerCase(), h.hotkeyID); names.push(h.name); }
       }
-      this.emit('log', { level: 'info', msg: `vts:載入 ${this._hotkeys.size} 個快捷鍵` });
+      this.emit('log', { level: 'info', msg: `vts:載入 ${names.length} 個表情快捷鍵` });
+      this.emit('hotkeys', names); // 給 UI 做下拉選單
     } catch (e) { this.emit('log', { level: 'warn', msg: `vts:讀快捷鍵失敗 ${e.message}` }); }
   }
 

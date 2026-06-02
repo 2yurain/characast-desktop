@@ -16,6 +16,14 @@ contextBridge.exposeInMainWorld('characast', {
   reconnectObs: () => ipcRenderer.invoke('connect:obs'),
   reconnectVts: () => ipcRenderer.invoke('connect:vts'),
   reauthVts: () => ipcRenderer.invoke('vts:reauth'),
+  testVtsExpression: (emotion) => ipcRenderer.invoke('vts:test-expression', emotion),
+  testVtsMouth: () => ipcRenderer.invoke('vts:test-mouth'),
+  refreshVtsHotkeys: () => ipcRenderer.invoke('vts:refresh-hotkeys'),
+  onVtsHotkeys: (cb) => {
+    const handler = (_e, names) => cb(names);
+    ipcRenderer.on('vts:hotkeys', handler);
+    return () => ipcRenderer.removeListener('vts:hotkeys', handler);
+  },
   // TTS 播放振幅 → main → VTS 嘴型(高頻 fire-and-forget)
   ttsAmplitude: (v) => ipcRenderer.send('tts:amplitude', v),
   onLog: (cb) => {

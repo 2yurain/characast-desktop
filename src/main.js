@@ -83,6 +83,24 @@ ipcMain.handle('vts:reauth', () => {
 });
 // renderer 播 TTS 時送來的振幅 → 注入 VTS 嘴型(高頻,用 .on 不用 .handle)
 ipcMain.on('tts:amplitude', (_e, v) => { vts.setMouth(v); });
+// 本機測試:直接觸發某情緒對應的表情 hotkey
+ipcMain.handle('vts:test-expression', (_e, emotion) => {
+  const map = (settings.get('vts') || {}).emotions || {};
+  const hotkey = map[emotion] || map.neutral;
+  if (hotkey) vts.triggerExpression(hotkey);
+  return { ok: Boolean(hotkey), hotkey: hotkey || null };
+});
+// 本機測試:跑一段假嘴型(0→1→0 波動 1.5 秒)看 VTS 嘴巴有沒有動
+ipcMain.handle('vts:refresh-hotkeys', () => { vts.refreshHotkeys(); return { ok: true }; });
+ipcMain.handle('vts:test-mouth', () => {
+  let t = 0;
+  const iv = setInterval(() => {
+    t += 0.1;
+    vts.setMouth(Math.abs(Math.sin(t * 6)) * 0.9);
+    if (t >= 1.5) { clearInterval(iv); vts.setMouth(0); }
+  }, 60);
+  return { ok: true };
+});
 
 ipcMain.handle('logs:recent', () => logBuffer.slice(-100));
 
@@ -153,6 +171,10 @@ app.whenReady().then(() => {
   vts.on('token', (token) => {
     const cfg = settings.get('vts') || {};
     settings.set('vts', { ...cfg, token: token || '' });
+  });
+  // 模型表情清單 → renderer 做下拉選單
+  vts.on('hotkeys', (names) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('vts:hotkeys', names);
   });
 
   // 連線狀態變動 → renderer
