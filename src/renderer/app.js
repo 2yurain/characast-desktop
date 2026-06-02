@@ -77,6 +77,14 @@ async function refreshStatusCards(s) {
     $('obs-hint-link').style.display = '';
   }
   $('obs-meta').textContent = s.obs.config ? `${s.obs.config.host}:${s.obs.config.port}` : '';
+
+  // VTube Studio
+  if (s.vts) {
+    if (s.vts.authed) setPill($('vts-pill'), 'connected', '🟢 已授權');
+    else if (s.vts.connected) setPill($('vts-pill'), 'connecting', '🟡 授權中');
+    else setPill($('vts-pill'), 'error', '⚪ 未連線');
+    const meta = $('vts-meta'); if (meta) meta.textContent = s.vts.authed ? '表情 + 嘴型已連動' : '在 VTuber 分頁啟用';
+  }
 }
 
 // 點「→ 怎麼設定 OBS?」切到 OBS tab + 捲到 howto
@@ -113,6 +121,7 @@ window.characast.onStatus((s) => {
 
 $('cloud-reconnect').addEventListener('click', () => window.characast.reconnectCloud());
 $('obs-reconnect').addEventListener('click', () => window.characast.reconnectObs());
+$('vts-reconnect')?.addEventListener('click', () => window.characast.reconnectVts());
 
 // ============== Settings ==============
 async function fillSettingsForm() {
@@ -122,6 +131,19 @@ async function fillSettingsForm() {
   $('obs-password').value = s.obs?.password || '';
   $('cloud-url').value = s.cloudUrl || '';
   $('cloud-https-url').value = s.cloudHttpsUrl || '';
+  // VTS
+  const v = s.vts || {};
+  if ($('vts-enabled')) {
+    $('vts-enabled').checked = Boolean(v.enabled);
+    $('vts-host').value = v.host || 'localhost';
+    $('vts-port').value = v.port || 8001;
+    const em = v.emotions || {};
+    $('vts-emo-happy').value = em.happy || '';
+    $('vts-emo-sad').value = em.sad || '';
+    $('vts-emo-surprised').value = em.surprised || '';
+    $('vts-emo-teasing').value = em.teasing || '';
+    $('vts-emo-neutral').value = em.neutral || '';
+  }
   // 帳號 tab:顯示「已配對」狀態
   const status = await window.characast.getStatus();
   const accEl = $('account-status');
@@ -149,6 +171,31 @@ $('cloud-save').addEventListener('click', async () => {
     cloudHttpsUrl: $('cloud-https-url').value.trim(),
   });
   window.characast.reconnectCloud();
+});
+
+$('vts-save')?.addEventListener('click', async () => {
+  // 保留現有 token(只有「重新授權」會清)
+  const cur = (await window.characast.getSettings()).vts || {};
+  await window.characast.setSettings({
+    vts: {
+      enabled: $('vts-enabled').checked,
+      host: $('vts-host').value.trim() || 'localhost',
+      port: Number($('vts-port').value) || 8001,
+      token: cur.token || '',
+      emotions: {
+        happy: $('vts-emo-happy').value.trim(),
+        sad: $('vts-emo-sad').value.trim(),
+        surprised: $('vts-emo-surprised').value.trim(),
+        teasing: $('vts-emo-teasing').value.trim(),
+        neutral: $('vts-emo-neutral').value.trim(),
+      },
+    },
+  });
+  window.characast.reconnectVts();
+});
+
+$('vts-reauth')?.addEventListener('click', async () => {
+  await window.characast.reauthVts();
 });
 
 $('revoke-btn').addEventListener('click', async () => {
@@ -226,6 +273,43 @@ function pickVoice(voice) {
       || null;
 }
 
+// ===== VTS lip-sync:把 TTS 播放振幅送給 main → 注入 VTS 嘴型 =====
+const _amp = (v) => { try { window.characast.ttsAmplitude?.(v); } catch {} };
+
+// Azure <audio>:Web Audio AnalyserNode 取真實振幅
+let _audioCtx = null;
+function lipSyncFromAudio(a) {
+  try {
+    if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_audioCtx.state === 'suspended') _audioCtx.resume().catch(() => {});
+    const src = _audioCtx.createMediaElementSource(a);
+    const an = _audioCtx.createAnalyser(); an.fftSize = 256;
+    src.connect(an); an.connect(_audioCtx.destination);
+    const buf = new Uint8Array(an.fftSize);
+    let raf = 0;
+    const tick = () => {
+      an.getByteTimeDomainData(buf);
+      let sum = 0; for (let i = 0; i < buf.length; i++) { const x = (buf[i] - 128) / 128; sum += x * x; }
+      _amp(Math.min(1, Math.sqrt(sum / buf.length) * 3)); // RMS 放大
+      if (!a.paused && !a.ended) raf = requestAnimationFrame(tick); else _amp(0);
+    };
+    a.addEventListener('play', () => { raf = requestAnimationFrame(tick); });
+    a.addEventListener('ended', () => { cancelAnimationFrame(raf); _amp(0); });
+    a.addEventListener('pause', () => { cancelAnimationFrame(raf); _amp(0); });
+  } catch { /* lip-sync 失敗不影響播放 */ }
+}
+
+// Web Speech:拿不到音訊串流 → 講話期間用合成抖動驅動嘴型
+let _webMouthTimer = null;
+function startWebMouth() {
+  stopWebMouth();
+  _webMouthTimer = setInterval(() => _amp(0.25 + Math.random() * 0.55), 110);
+}
+function stopWebMouth() {
+  if (_webMouthTimer) { clearInterval(_webMouthTimer); _webMouthTimer = null; }
+  _amp(0);
+}
+
 function speak({ text, voice, rate, pitch }) {
   if (!window.speechSynthesis) { ttsLog('err', '不支援 speechSynthesis'); return; }
   if (!text) return;
@@ -242,10 +326,10 @@ function speak({ text, voice, rate, pitch }) {
   if (v) { u.voice = v; u.lang = v.lang; }
   else u.lang = 'zh-TW';  // 沒匹配到 voice 也給 lang,讓引擎自己挑中文
 
-  u.onstart = () => ttsLog('info', `開始播:voice="${u.voice?.name || u.lang}" "${String(text).slice(0, 30)}"`);
-  u.onend = () => { _keepAlive.delete(u); };
+  u.onstart = () => { startWebMouth(); ttsLog('info', `開始播:voice="${u.voice?.name || u.lang}" "${String(text).slice(0, 30)}"`); };
+  u.onend = () => { _keepAlive.delete(u); stopWebMouth(); };
   u.onerror = (e) => {
-    _keepAlive.delete(u);
+    _keepAlive.delete(u); stopWebMouth();
     const err = (e && e.error) || 'unknown';
     const hint = err === 'not-allowed' ? '(瀏覽器政策:先點一下視窗任意處或「🔊 啟用語音」鈕)' : '';
     ttsLog('err', `播放失敗:${err}${hint}`);
@@ -264,6 +348,7 @@ function playAudio({ audioBase64, mime }) {
     if (_ttsAudio) { try { _ttsAudio.pause(); } catch {} _ttsAudio = null; }
     const a = new Audio(`data:${mime || 'audio/mpeg'};base64,${audioBase64}`);
     _ttsAudio = a;
+    lipSyncFromAudio(a); // VTS 嘴型(真實振幅)
     a.onplay = () => ttsLog('info', 'Azure 音檔開始播');
     a.onended = () => { if (_ttsAudio === a) _ttsAudio = null; };
     a.onerror = () => ttsLog('err', `音檔播放失敗(code=${a.error?.code ?? '?'})`);

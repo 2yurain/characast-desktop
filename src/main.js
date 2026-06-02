@@ -9,12 +9,14 @@ const path = require('path');
 const settings = require('./lib/settings');
 const { CloudClient } = require('./lib/cloudClient');
 const { ObsClient } = require('./lib/obsClient');
+const { VtsClient } = require('./lib/vtsClient');
 const { Relay } = require('./lib/relay');
 const { autoUpdater } = require('electron-updater');
 
 // 全域單例
 const cloud = new CloudClient();
 const obs = new ObsClient();
+const vts = new VtsClient();
 let relay = null;
 let mainWindow = null;
 
@@ -67,8 +69,20 @@ ipcMain.handle('settings:set', (_e, patch) => {
 ipcMain.handle('status:get', () => ({
   cloud: cloud.getStatus(),
   obs: obs.getStatus(),
+  vts: vts.getStatus(),
   hasToken: Boolean(settings.get('desktopToken')),
 }));
+
+ipcMain.handle('connect:vts', () => { reconnectVts(); return { ok: true }; });
+// VTS 重新授權:清掉 token 再連(會重新跳 VTS 允許視窗)
+ipcMain.handle('vts:reauth', () => {
+  const cfg = settings.get('vts') || {};
+  settings.set('vts', { ...cfg, token: '' });
+  reconnectVts();
+  return { ok: true };
+});
+// renderer 播 TTS 時送來的振幅 → 注入 VTS 嘴型(高頻,用 .on 不用 .handle)
+ipcMain.on('tts:amplitude', (_e, v) => { vts.setMouth(v); });
 
 ipcMain.handle('logs:recent', () => logBuffer.slice(-100));
 
@@ -105,6 +119,12 @@ ipcMain.handle('pair:revoke', () => {
 ipcMain.handle('connect:cloud', () => { reconnectCloud(); return { ok: true }; });
 ipcMain.handle('connect:obs', () => { reconnectObs(); return { ok: true }; });
 
+function reconnectVts() {
+  const cfg = settings.get('vts') || {};
+  vts.disconnect();
+  vts.connect({ enabled: cfg.enabled, host: cfg.host, port: cfg.port, token: cfg.token });
+}
+
 // ======= reconnect wrappers =======
 function reconnectCloud() {
   const token = settings.get('desktopToken');
@@ -128,6 +148,12 @@ app.whenReady().then(() => {
   // 接 log → buffer + 廣播 renderer
   cloud.on('log', pushLog);
   obs.on('log', pushLog);
+  vts.on('log', pushLog);
+  // VTS 首次授權拿到 token → 存進 settings(下次免再跳允許視窗)
+  vts.on('token', (token) => {
+    const cfg = settings.get('vts') || {};
+    settings.set('vts', { ...cfg, token: token || '' });
+  });
 
   // 連線狀態變動 → renderer
   const broadcastStatus = () => {
@@ -135,12 +161,14 @@ app.whenReady().then(() => {
       mainWindow.webContents.send('status', {
         cloud: cloud.getStatus(),
         obs: obs.getStatus(),
+        vts: vts.getStatus(),
         hasToken: Boolean(settings.get('desktopToken')),
       });
     }
   };
   cloud.on('status', broadcastStatus);
   obs.on('status', broadcastStatus);
+  vts.on('status', broadcastStatus);
 
   // 串接 relay
   relay = new Relay({
@@ -150,16 +178,23 @@ app.whenReady().then(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('tts', msg);
       }
+      // AI 情緒 → VTS 表情(emotion 對應主播設定的 hotkey 名稱)
+      if (msg?.emotion) {
+        const map = (settings.get('vts') || {}).emotions || {};
+        const hotkey = map[msg.emotion] || map.neutral;
+        if (hotkey) vts.triggerExpression(hotkey);
+      }
     },
   });
   relay.start();
 
   createWindow();
 
-  // 開機自動嘗試連兩邊
+  // 開機自動嘗試連線
   setTimeout(() => {
     reconnectCloud();
     reconnectObs();
+    reconnectVts();
   }, 500);
 
   // 自動更新(從 GitHub Releases 抓 latest.yml;dev 模式會略過)
@@ -182,4 +217,5 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   try { cloud.disconnect(); } catch {}
   try { obs.disconnect(); } catch {}
+  try { vts.disconnect(); } catch {}
 });

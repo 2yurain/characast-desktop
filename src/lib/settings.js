@@ -19,6 +19,15 @@ const store = new Store({
       port: 4455,
       password: '',
     },
+    // VTube Studio(AI 角色立繪:情緒表情 + TTS 嘴型）
+    vts: {
+      enabled: false,
+      host: 'localhost',
+      port: 8001,
+      token: '',            // VTS 授權 token(首次授權後存)
+      // 情緒 → VTS hotkey 名稱(主播在 VTS 設好表情快捷鍵,把名稱填這)
+      emotions: { happy: '', sad: '', surprised: '', teasing: '', neutral: '' },
+    },
   },
 });
 

@@ -45,11 +45,18 @@
         <button class="ghost" id="obs-reconnect">重連</button>
         <span class="hint-link" id="obs-hint-link" style="display:none">→ 怎麼設定 OBS?</span>
       </div>
+      <div class="status-card" id="vts-card">
+        <div class="card-title">VTube Studio</div>
+        <div class="card-pill" id="vts-pill">—</div>
+        <div class="card-meta" id="vts-meta">—</div>
+        <button class="ghost" id="vts-reconnect">重連</button>
+      </div>
     </div>
 
     <!-- Tabs:OBS / 進階 / 帳號 -->
     <div class="tabs-nav" role="tablist">
       <button class="tab-btn active" data-tab="obs">🎬 OBS</button>
+      <button class="tab-btn" data-tab="vts">🎭 VTuber</button>
       <button class="tab-btn" data-tab="account">👤 帳號</button>
       <button class="tab-btn" data-tab="advanced">⚙️ 進階</button>
     </div>
@@ -83,6 +90,38 @@
       <input id="obs-password" type="password" placeholder="從 OBS Show Connect Info 複製,沒設可空">
       <div class="form-actions">
         <button id="obs-save">儲存 + 重連</button>
+      </div>
+    </div>
+
+    <!-- Tab: VTuber(VTube Studio) -->
+    <div class="tab-pane" data-tab="vts">
+      <div class="howto">
+        <div class="howto-title">📖 讓 AI 角色變成會動的 VTuber(4 步)</div>
+        <ol class="howto-list">
+          <li>開 <strong>VTube Studio</strong> → 設定 → <strong>啟用 API</strong>(預設 port 8001)</li>
+          <li>下方勾「啟用」→ 點「連線 / 授權」→ <strong>回 VTS 按「允許」</strong>那個外掛視窗</li>
+          <li>在 VTS 幫常用表情各設一個<strong>快捷鍵(Hotkey)</strong>,把名稱填到下面對應的情緒</li>
+          <li>嘴型:把模型嘴巴的 InputParameter 綁到 <code>MouthOpen</code> 或自建的 <code>CharaCastMouth</code></li>
+        </ol>
+        <div class="howto-note">需要先在「進階 / TTS」啟用語音,嘴型才會跟著動(用 TTS 音訊驅動)。</div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="vts-enabled" type="checkbox"> <span>啟用 VTube Studio 連動</span>
+      </label>
+      <div class="form-row" style="margin-top:10px">
+        <div class="form-col"><label>Host</label><input id="vts-host" type="text" placeholder="localhost"></div>
+        <div class="form-col"><label>Port</label><input id="vts-port" type="number" placeholder="8001"></div>
+      </div>
+      <label style="margin-top:12px;display:block">情緒 → VTS 表情快捷鍵名稱</label>
+      <div class="form-row"><div class="form-col"><label>😊 開心</label><input id="vts-emo-happy" type="text" placeholder="hotkey 名稱"></div>
+        <div class="form-col"><label>😢 難過</label><input id="vts-emo-sad" type="text" placeholder="hotkey 名稱"></div></div>
+      <div class="form-row"><div class="form-col"><label>😲 驚訝</label><input id="vts-emo-surprised" type="text" placeholder="hotkey 名稱"></div>
+        <div class="form-col"><label>😏 吐槽</label><input id="vts-emo-teasing" type="text" placeholder="hotkey 名稱"></div></div>
+      <label>😐 平常(預設)</label>
+      <input id="vts-emo-neutral" type="text" placeholder="hotkey 名稱">
+      <div class="form-actions">
+        <button id="vts-save">儲存 + 連線</button>
+        <button class="ghost" id="vts-reauth">重新授權</button>
       </div>
     </div>
 

@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('characast', {
   revokePair: () => ipcRenderer.invoke('pair:revoke'),
   reconnectCloud: () => ipcRenderer.invoke('connect:cloud'),
   reconnectObs: () => ipcRenderer.invoke('connect:obs'),
+  reconnectVts: () => ipcRenderer.invoke('connect:vts'),
+  reauthVts: () => ipcRenderer.invoke('vts:reauth'),
+  // TTS 播放振幅 → main → VTS 嘴型(高頻 fire-and-forget)
+  ttsAmplitude: (v) => ipcRenderer.send('tts:amplitude', v),
   onLog: (cb) => {
     const handler = (_e, entry) => cb(entry);
     ipcRenderer.on('log', handler);
