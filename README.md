@@ -1,35 +1,33 @@
 # CharaCast Desktop
 
-> Bridge between [CharaCast cloud](https://characast-core.onrender.com) and local OBS Studio.
-> 解決雲端 bot 無法直連主播本地 OBS / TTS / VTube Studio 的問題。
+> Bridge between [CharaCast cloud](https://characast.co) and local OBS Studio.
+> 解決雲端 bot 無法直連主播本地 OBS / TTS / VTube Studio / 麥克風的問題。
 
 Electron app,跑在主播電腦上,雙向連兩條 WebSocket:
-- ↑ **CharaCast Cloud**(`wss://characast-core.onrender.com/api/v1/desktop/ws`)
+- ↑ **CharaCast Cloud**(`wss://characast.co/api/v1/desktop/ws`)
 - ↓ **本機 OBS WebSocket**(`ws://localhost:4455`)
 
 ## 路線
 
 ```
-Phase 1 (server side, in characast-core repo)     ✅ done
+Phase 1 (server side, in characast repo)          ✅ done
   └─ /api/v1/desktop/ws WebSocket endpoint + pair code
 
-Phase 2 (this repo, MVP)                          ✅ current
-  ├─ Electron 框架
-  ├─ 連 OBS WebSocket localhost:4455
-  ├─ 連 CharaCast cloud /desktop/ws
-  ├─ 配對(主播後台拿 6 位碼 → desktop 輸入 → 換 token)
-  ├─ 自動重連 + log
-  └─ 雙向 relay:OBS event ↔ cloud message
+Phase 2 (Electron 框架)                            ✅ done
+  ├─ 連 OBS WebSocket + CharaCast cloud /desktop/ws
+  ├─ 配對(後台 6 位碼 → desktop → 換 token,token OS 加密存)
+  └─ 自動重連 + log + 雙向 relay
 
-Phase 3 (next)
+Phase 3 (本機 ↔ cloud 互動)                         ✅ done
   ├─ 麥靜音事件 → cloud bot 觸發 AFK 撐場
-  ├─ Scene change → 通知 cloud
-  └─ Cloud bot 控制本機 OBS(切場景 / 切音源)
+  ├─ Scene / stream 狀態 → 通知 cloud
+  └─ Cloud 控制本機 OBS(閉麥主播 power / 存重播剪輯)
 
-Phase 4
-  ├─ TTS 引擎(Azure / OpenAI)
-  ├─ VTube Studio 整合(表情 / 嘴形)
-  └─ Auto-update
+Phase 4 (媒體)                                     ✅ done
+  ├─ TTS 播放(Web Speech + Azure mp3,驅動 VTS 嘴型)
+  ├─ VTube Studio(情緒 → 表情 hotkey + 嘴型)
+  ├─ 🎤 歌聲共鳴:抓麥偵測 F0 音高 → cloud → OBS overlay
+  └─ Auto-update(electron-updater,GitHub Releases)
 ```
 
 ## Run dev
@@ -44,10 +42,13 @@ npm start
 
 ### 拿配對碼步驟
 
-1. 上 https://characast-core.onrender.com/app.html 登入
+1. 上 https://characast.co/app.html 登入
 2. 找「🖥️ Desktop Client(OBS / 麥靜音 / TTS)」面板
 3. 點「產生配對碼」→ 6 位大字會出現(K2P7AB 之類)
 4. 回 desktop 視窗輸入
+
+> 註:cloud 位址白名單只放行 `characast.co`。舊版裝置存著 `characast-core.onrender.com`
+> 會在開機時自動遷移成 `characast.co`(見 `settings.migrateCloudUrls`)。
 
 ### OBS 設定
 
@@ -74,12 +75,15 @@ npm run build:linux    # Linux AppImage
 - `{ type: 'mic.state', inputName, muted, durationSeconds }` 麥靜音變動
 - `{ type: 'obs.scene_changed', scene }` 場景切換
 - `{ type: 'obs.stream_state', active, state }` 開/停 stream
+- `{ type: 'resonance', energy, freq }` 歌聲共鳴 音高 F0(高頻 ~12/s,雲端轉發給 OBS overlay)
 
 ### Server → Client
 - `{ type: 'auth.ok' | 'auth.fail' }` 認證結果
 - `{ type: 'ping' }` 心跳
-- `{ type: 'tts.say', text }` 要 client 播 TTS(Phase 4 實作)
+- `{ type: 'tts.say', text }` / `{ type: 'tts.audio', audioBase64, mime }` 播 TTS
 - `{ type: 'obs.set_scene', scene }` 切場景
+- `{ type: 'mic.mute', seconds, inputName? }` 閉麥主播 power
+- `{ type: 'clip.replay', category, requester }` 存重播剪輯
 
 ## 結構
 
@@ -89,13 +93,14 @@ characast-desktop/
 │  ├─ main.js                # Electron main process
 │  ├─ preload.js             # IPC bridge to renderer
 │  ├─ lib/
-│  │  ├─ settings.js         # electron-store 設定(token / OBS config)
+│  │  ├─ settings.js         # electron-store 設定(token/OBS/VTS,機密 OS 加密)
 │  │  ├─ cloudClient.js      # CharaCast cloud WebSocket(認證 + 重連)
-│  │  ├─ obsClient.js        # OBS WebSocket(訂閱事件 + 重連)
+│  │  ├─ obsClient.js        # OBS WebSocket(訂閱事件 + 控制 + 重連)
+│  │  ├─ vtsClient.js        # VTube Studio(表情 hotkey + 嘴型)
 │  │  └─ relay.js            # OBS event ↔ Cloud message 雙向轉發
 │  └─ renderer/
-│     ├─ index.html          # Pair view + Status view + Settings + Log
-│     ├─ app.js              # 用 window.characast IPC 跟 main 通
+│     ├─ index.html          # Pair / Status / OBS / VTuber / 歌聲共鳴 / Log
+│     ├─ app.js              # IPC + TTS 播放 + 歌聲共鳴抓麥(F0)
 │     └─ styles.css
 ├─ assets/                   # icon(待補)
 ├─ package.json              # Electron + electron-builder + obs-websocket-js + ws
