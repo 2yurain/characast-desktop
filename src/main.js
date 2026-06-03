@@ -59,9 +59,28 @@ function createWindow() {
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('settings:get', () => settings.all());
 
+// renderer 只允許改這些 key(白名單,擋掉亂塞鍵 / 原型污染)
+const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts']);
+
 ipcMain.handle('settings:set', (_e, patch) => {
   if (patch && typeof patch === 'object') {
-    for (const [k, v] of Object.entries(patch)) settings.set(k, v);
+    for (const [k, v] of Object.entries(patch)) {
+      if (!SETTABLE_KEYS.has(k)) {
+        pushLog({ level: 'warn', msg: `忽略不允許的設定鍵:${k}` });
+        continue;
+      }
+      // Cloud URL 一律驗證(必須 wss/https + 屬於 characast.co/本機),擋掉把 token 導去攻擊者
+      if (k === 'cloudUrl' || k === 'cloudHttpsUrl') {
+        const chk = settings.validateCloudUrl(v, { kind: k === 'cloudHttpsUrl' ? 'https' : 'ws' });
+        if (!chk.ok) {
+          pushLog({ level: 'err', msg: `拒絕設定 ${k}:${chk.error}` });
+          continue;
+        }
+        settings.set(k, chk.value);
+        continue;
+      }
+      settings.set(k, v);
+    }
   }
   return settings.all();
 });
@@ -107,6 +126,12 @@ ipcMain.handle('logs:recent', () => logBuffer.slice(-100));
 ipcMain.handle('pair:exchange', async (_e, code) => {
   // call CharaCast HTTPS endpoint to exchange 6-char code for desktop_token
   const httpsUrl = settings.get('cloudHttpsUrl');
+  // 用前再驗一次(防 store 檔被直接竄改把 token 導去攻擊者)
+  const chk = settings.validateCloudUrl(httpsUrl, { kind: 'https' });
+  if (!chk.ok) {
+    pushLog({ level: 'err', msg: `配對中止:cloud 位址不合法(${chk.error})` });
+    return { ok: false, error: 'cloud 位址不合法' };
+  }
   const url = `${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/exchange-code`;
   try {
     const res = await fetch(url, {
@@ -152,7 +177,13 @@ function reconnectCloud() {
     pushLog({ level: 'warn', msg: '尚未配對,跳過 cloud 連線' });
     return;
   }
-  cloud.connect({ url, desktopToken: token });
+  // 連線會帶上 desktopToken,用前再驗一次位址(防 store 被竄改導向)
+  const chk = settings.validateCloudUrl(url, { kind: 'ws' });
+  if (!chk.ok) {
+    pushLog({ level: 'err', msg: `cloud 位址不合法(${chk.error}),已停止連線以保護 token` });
+    return;
+  }
+  cloud.connect({ url: chk.value, desktopToken: token });
 }
 
 function reconnectObs() {
@@ -163,6 +194,9 @@ function reconnectObs() {
 
 // ======= 啟動 =======
 app.whenReady().then(() => {
+  // 把舊版明文機密(token / OBS 密碼 / VTS token)就地升級成 OS 加密儲存
+  try { settings.migrateSecrets(); } catch (e) { pushLog({ level: 'warn', msg: `機密加密升級略過:${e?.message || e}` }); }
+
   // 接 log → buffer + 廣播 renderer
   cloud.on('log', pushLog);
   obs.on('log', pushLog);
