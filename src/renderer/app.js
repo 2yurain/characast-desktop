@@ -506,7 +506,7 @@ async function resoStart() {
   srcNode.connect(an);
   const buf = new Float32Array(an.fftSize);
 
-  // 音高偵測(自相關)是 O(n²),放在 ~12/s 的計時器跑(不用每幀),省 CPU 又夠即時
+  // 音高偵測(自相關)是 O(n²),放在 ~20/s 的計時器跑(不用每幀);送密一點 overlay 才滑順
   _resoTimer = setInterval(() => {
     an.getFloatTimeDomainData(buf);
     let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
@@ -518,7 +518,7 @@ async function resoStart() {
     const note = _resoFreq ? `♪ ${freqToNoteName(_resoFreq)}(${Math.round(_resoFreq)}Hz)` : '靜音中';
     setResoHint(`✓ 歌聲共鳴開啟中 — ${note}`);
     try { window.characast.resonanceData?.({ energy: _resoEnergy, freq: _resoFreq }); } catch {}
-  }, 80);
+  }, 50);
   setResoHint('✓ 歌聲共鳴開啟中 — 唱歌看 OBS overlay');
 }
 
