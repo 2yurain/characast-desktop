@@ -485,7 +485,10 @@ async function resoStart() {
     let mag = 0, wsum = 0;
     for (let i = 1; i < fd.length; i++) { const m = fd[i]; mag += m; wsum += (i * binHz) * m; }
     if (rms > 0.012 && mag > 0) { _resoCentroid += ((wsum / mag) - _resoCentroid) * 0.15; }
-    else { _resoEnergy += (0 - _resoEnergy) * 0.1; }
+    else {
+      _resoEnergy += (0 - _resoEnergy) * 0.1;
+      _resoCentroid += (0 - _resoCentroid) * 0.05;   // 靜音時 Hz 慢慢滑回 0,不要卡在最後數值
+    }
     _resoRAF = requestAnimationFrame(tick);
   };
   _resoRAF = requestAnimationFrame(tick);
