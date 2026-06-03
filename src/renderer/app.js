@@ -431,10 +431,42 @@ $('tts-test')?.addEventListener('click', () => {
 });
 
 // ============== 🎤 歌聲共鳴(抓麥 → 推 OBS overlay)==============
-// OBS 拿不到麥 → 由這裡(renderer 有完整 getUserMedia)抓麥、算出 energy + 頻譜質心,
-// 用 IPC 高頻送給 main → cloud → overlay。聲音本機分析,只送數值,不送音檔。
-let _resoStream = null, _resoCtx = null, _resoRAF = 0, _resoTimer = null;
-let _resoEnergy = 0, _resoCentroid = 200;
+// OBS 拿不到麥 → 由這裡(renderer 有完整 getUserMedia)抓麥、偵測真實音高(F0,自相關)+ 響度,
+// 用 IPC 送 { energy, freq } 給 main → cloud → overlay。聲音本機分析,只送數值,不送音檔。
+let _resoStream = null, _resoCtx = null, _resoTimer = null;
+let _resoEnergy = 0, _resoFreq = 0;
+
+const RESO_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+function freqToNoteName(f) {
+  if (!f || f < 20) return '';
+  const midi = Math.round(69 + 12 * Math.log2(f / 440));
+  return RESO_NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1);
+}
+
+// 自相關音高偵測(回傳 Hz,-1 = 無音高)— cwilso 風格 + 邊緣修剪 + 拋物線內插
+function resoDetectPitch(buf, sampleRate) {
+  const SIZE = buf.length;
+  let rms = 0; for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.01) return -1;
+  let r1 = 0, r2 = SIZE - 1; const thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) { if (Math.abs(buf[i]) < thres) { r1 = i; break; } }
+  for (let i = 1; i < SIZE / 2; i++) { if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; } }
+  const b = buf.subarray(r1, r2), n = b.length;
+  if (n < 64) return -1;
+  const c = new Float32Array(n);
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = 0; j < n - i; j++) s += b[j] * b[j + i]; c[i] = s; }
+  let d = 0; while (d < n - 1 && c[d] > c[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < n; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } }
+  if (maxpos <= 0) return -1;
+  let T0 = maxpos;
+  const x1 = c[T0 - 1] || 0, x2 = c[T0], x3 = c[T0 + 1] || 0;
+  const a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
+  if (a) T0 = T0 - bb / (2 * a);
+  const f = sampleRate / T0;
+  return (f >= 60 && f <= 1200) ? f : -1;
+}
 
 function setResoHint(msg) { const h = $('reso-hint'); if (h) h.textContent = msg; }
 
@@ -470,46 +502,34 @@ async function resoStart() {
   const sr = _resoCtx.sampleRate;
   const srcNode = _resoCtx.createMediaStreamSource(_resoStream);
   const an = _resoCtx.createAnalyser();
-  an.fftSize = 2048; an.smoothingTimeConstant = 0.8;
+  an.fftSize = 2048;                       // 2048 取樣 → 可偵測到 ~43Hz 以上(歌唱足夠)
   srcNode.connect(an);
-  const td = new Uint8Array(an.fftSize);
-  const fd = new Uint8Array(an.frequencyBinCount);
-  const binHz = sr / an.fftSize;
+  const buf = new Float32Array(an.fftSize);
 
-  const tick = () => {
-    an.getByteTimeDomainData(td);
-    let sum = 0; for (let i = 0; i < td.length; i++) { const x = (td[i] - 128) / 128; sum += x * x; }
-    const rms = Math.sqrt(sum / td.length);
-    _resoEnergy += (Math.min(100, rms * 320) - _resoEnergy) * 0.3;
-    an.getByteFrequencyData(fd);
-    let mag = 0, wsum = 0;
-    for (let i = 1; i < fd.length; i++) { const m = fd[i]; mag += m; wsum += (i * binHz) * m; }
-    if (rms > 0.012 && mag > 0) { _resoCentroid += ((wsum / mag) - _resoCentroid) * 0.15; }
-    else {
-      _resoEnergy += (0 - _resoEnergy) * 0.1;
-      _resoCentroid += (0 - _resoCentroid) * 0.05;   // 靜音時 Hz 慢慢滑回 0,不要卡在最後數值
-    }
-    _resoRAF = requestAnimationFrame(tick);
-  };
-  _resoRAF = requestAnimationFrame(tick);
-
-  // 約 12/s 把當前值送出 + 更新本機儀表(分析在 rAF 跑,送出用慢一點的計時器省頻寬)
+  // 音高偵測(自相關)是 O(n²),放在 ~12/s 的計時器跑(不用每幀),省 CPU 又夠即時
   _resoTimer = setInterval(() => {
+    an.getFloatTimeDomainData(buf);
+    let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length);
+    _resoEnergy += (Math.min(100, rms * 320) - _resoEnergy) * 0.5;
+    const f = resoDetectPitch(buf, sr);
+    _resoFreq = f > 0 ? f : 0;
     const m = $('reso-meter'); if (m) m.style.width = Math.min(100, _resoEnergy) + '%';
-    try { window.characast.resonanceData?.({ energy: _resoEnergy, centroid: _resoCentroid }); } catch {}
+    const note = _resoFreq ? `♪ ${freqToNoteName(_resoFreq)}(${Math.round(_resoFreq)}Hz)` : '靜音中';
+    setResoHint(`✓ 歌聲共鳴開啟中 — ${note}`);
+    try { window.characast.resonanceData?.({ energy: _resoEnergy, freq: _resoFreq }); } catch {}
   }, 80);
-  setResoHint('✓ 歌聲共鳴開啟中 — 唱歌看 OBS 的共鳴 overlay');
+  setResoHint('✓ 歌聲共鳴開啟中 — 唱歌看 OBS overlay');
 }
 
 function resoStop() {
-  if (_resoRAF) { cancelAnimationFrame(_resoRAF); _resoRAF = 0; }
   if (_resoTimer) { clearInterval(_resoTimer); _resoTimer = null; }
   if (_resoCtx) { try { _resoCtx.close(); } catch {} _resoCtx = null; }
   if (_resoStream) { try { _resoStream.getTracks().forEach((t) => t.stop()); } catch {} _resoStream = null; }
   const m = $('reso-meter'); if (m) m.style.width = '0%';
-  _resoEnergy = 0;
-  try { window.characast.resonanceData?.({ energy: 0, centroid: _resoCentroid }); } catch {}  // 推一發歸零讓 overlay 淡出
-  setResoHint('已停止。需 cloud 已連線,開啟後唱歌 OBS 共鳴 overlay 就會動。');
+  _resoEnergy = 0; _resoFreq = 0;
+  try { window.characast.resonanceData?.({ energy: 0, freq: 0 }); } catch {}  // 推一發歸零讓 overlay 淡出
+  setResoHint('已停止。需 cloud 已連線,開啟後唱歌 OBS overlay 就會動。');
 }
 
 async function persistReso() {
