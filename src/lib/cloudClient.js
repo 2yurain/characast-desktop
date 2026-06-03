@@ -8,6 +8,7 @@
 //     { type: 'pong' }
 //     { type: 'mic.state', muted, durationSeconds }
 //     { type: 'obs.scene_changed', scene }
+//     { type: 'resonance', energy, centroid }   歌聲共鳴(高頻 ~12/s,雲端轉發給 OBS overlay)
 //   server → client:
 //     { type: 'auth.ok' | 'auth.fail' }
 //     { type: 'ping' }

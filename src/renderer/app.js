@@ -146,6 +146,14 @@ async function fillSettingsForm() {
       sel.value = val;
     }
   }
+  // 🎤 歌聲共鳴:還原開關 + 裝置,若上次是開啟就自動接續
+  const r = s.resonance || {};
+  if ($('reso-enabled')) {
+    $('reso-enabled').checked = Boolean(r.enabled);
+    await resoRefreshDevices(r.deviceId || '');
+    if (r.enabled) resoStart();
+  }
+
   // 帳號 tab:顯示「已配對」狀態
   const status = await window.characast.getStatus();
   const accEl = $('account-status');
@@ -421,6 +429,103 @@ $('tts-enable')?.addEventListener('click', () => {
 $('tts-test')?.addEventListener('click', () => {
   speak({ text: '凌小夏語音測試,主人聽得到嗎?', rate: 1.0, pitch: 1.0 });
 });
+
+// ============== 🎤 歌聲共鳴(抓麥 → 推 OBS overlay)==============
+// OBS 拿不到麥 → 由這裡(renderer 有完整 getUserMedia)抓麥、算出 energy + 頻譜質心,
+// 用 IPC 高頻送給 main → cloud → overlay。聲音本機分析,只送數值,不送音檔。
+let _resoStream = null, _resoCtx = null, _resoRAF = 0, _resoTimer = null;
+let _resoEnergy = 0, _resoCentroid = 200;
+
+function setResoHint(msg) { const h = $('reso-hint'); if (h) h.textContent = msg; }
+
+async function resoRefreshDevices(selectedId) {
+  try {
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const mics = devs.filter((d) => d.kind === 'audioinput');
+    const sel = $('reso-device'); if (!sel) return;
+    const cur = selectedId != null ? selectedId : sel.value;
+    sel.innerHTML = '<option value="">預設麥克風</option>'
+      + mics.map((m, i) => `<option value="${escAttr(m.deviceId)}">${escTxt(m.label || ('麥克風 ' + (i + 1)))}</option>`).join('');
+    sel.value = cur || '';
+  } catch { /* enumerate 失敗就只留「預設」 */ }
+}
+
+async function resoStart() {
+  if (_resoStream) return;                       // 已在跑
+  const deviceId = $('reso-device')?.value || '';
+  try {
+    _resoStream = await navigator.mediaDevices.getUserMedia({ audio: {
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+      echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch (e) {
+    if ($('reso-enabled')) $('reso-enabled').checked = false;
+    setResoHint('⚠ 拿不到麥克風:' + (e.message || e));
+    _resoStream = null;
+    return;
+  }
+  await resoRefreshDevices();                     // 拿到權限後 label 才有值,補一次清單
+
+  _resoCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_resoCtx.state === 'suspended') _resoCtx.resume().catch(() => {});
+  const sr = _resoCtx.sampleRate;
+  const srcNode = _resoCtx.createMediaStreamSource(_resoStream);
+  const an = _resoCtx.createAnalyser();
+  an.fftSize = 2048; an.smoothingTimeConstant = 0.8;
+  srcNode.connect(an);
+  const td = new Uint8Array(an.fftSize);
+  const fd = new Uint8Array(an.frequencyBinCount);
+  const binHz = sr / an.fftSize;
+
+  const tick = () => {
+    an.getByteTimeDomainData(td);
+    let sum = 0; for (let i = 0; i < td.length; i++) { const x = (td[i] - 128) / 128; sum += x * x; }
+    const rms = Math.sqrt(sum / td.length);
+    _resoEnergy += (Math.min(100, rms * 320) - _resoEnergy) * 0.3;
+    an.getByteFrequencyData(fd);
+    let mag = 0, wsum = 0;
+    for (let i = 1; i < fd.length; i++) { const m = fd[i]; mag += m; wsum += (i * binHz) * m; }
+    if (rms > 0.012 && mag > 0) { _resoCentroid += ((wsum / mag) - _resoCentroid) * 0.15; }
+    else { _resoEnergy += (0 - _resoEnergy) * 0.1; }
+    _resoRAF = requestAnimationFrame(tick);
+  };
+  _resoRAF = requestAnimationFrame(tick);
+
+  // 約 12/s 把當前值送出 + 更新本機儀表(分析在 rAF 跑,送出用慢一點的計時器省頻寬)
+  _resoTimer = setInterval(() => {
+    const m = $('reso-meter'); if (m) m.style.width = Math.min(100, _resoEnergy) + '%';
+    try { window.characast.resonanceData?.({ energy: _resoEnergy, centroid: _resoCentroid }); } catch {}
+  }, 80);
+  setResoHint('✓ 歌聲共鳴開啟中 — 唱歌看 OBS 的共鳴 overlay');
+}
+
+function resoStop() {
+  if (_resoRAF) { cancelAnimationFrame(_resoRAF); _resoRAF = 0; }
+  if (_resoTimer) { clearInterval(_resoTimer); _resoTimer = null; }
+  if (_resoCtx) { try { _resoCtx.close(); } catch {} _resoCtx = null; }
+  if (_resoStream) { try { _resoStream.getTracks().forEach((t) => t.stop()); } catch {} _resoStream = null; }
+  const m = $('reso-meter'); if (m) m.style.width = '0%';
+  _resoEnergy = 0;
+  try { window.characast.resonanceData?.({ energy: 0, centroid: _resoCentroid }); } catch {}  // 推一發歸零讓 overlay 淡出
+  setResoHint('已停止。需 cloud 已連線,開啟後唱歌 OBS 共鳴 overlay 就會動。');
+}
+
+async function persistReso() {
+  await window.characast.setSettings({ resonance: {
+    enabled: Boolean($('reso-enabled')?.checked),
+    deviceId: $('reso-device')?.value || '',
+  } });
+}
+
+$('reso-enabled')?.addEventListener('change', async (e) => {
+  await persistReso();
+  if (e.target.checked) resoStart(); else resoStop();
+});
+$('reso-device')?.addEventListener('change', async () => {
+  await persistReso();
+  if ($('reso-enabled')?.checked) { resoStop(); resoStart(); }   // 換裝置重啟
+});
+// AudioContext 可能因自動播放政策卡在 suspended,任一次點擊就嘗試恢復
+document.addEventListener('click', () => { if (_resoCtx && _resoCtx.state === 'suspended') _resoCtx.resume().catch(() => {}); });
 
 // init
 (async () => {

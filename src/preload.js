@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('characast', {
   },
   // TTS 播放振幅 → main → VTS 嘴型(高頻 fire-and-forget)
   ttsAmplitude: (v) => ipcRenderer.send('tts:amplitude', v),
+  // 歌聲共鳴 → main → cloud → OBS overlay(高頻 fire-and-forget)
+  resonanceData: (v) => ipcRenderer.send('resonance:data', v),
   onLog: (cb) => {
     const handler = (_e, entry) => cb(entry);
     ipcRenderer.on('log', handler);

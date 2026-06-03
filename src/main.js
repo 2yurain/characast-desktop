@@ -4,7 +4,7 @@
 // 啟動視窗,管理 OBS + Cloud 兩條 WebSocket,IPC 跟 renderer 溝通。
 // =====================================================
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
 const settings = require('./lib/settings');
 const { CloudClient } = require('./lib/cloudClient');
@@ -61,7 +61,7 @@ ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('settings:get', () => settings.all());
 
 // renderer 只允許改這些 key(白名單,擋掉亂塞鍵 / 原型污染)
-const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts']);
+const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance']);
 
 ipcMain.handle('settings:set', (_e, patch) => {
   if (patch && typeof patch === 'object') {
@@ -103,6 +103,12 @@ ipcMain.handle('vts:reauth', () => {
 });
 // renderer 播 TTS 時送來的振幅 → 注入 VTS 嘴型(高頻,用 .on 不用 .handle)
 ipcMain.on('tts:amplitude', (_e, v) => { vts.setMouth(v); });
+// renderer 抓麥算出的歌聲共鳴 → 轉給 cloud(再由 cloud 轉發給 OBS overlay)
+// 高頻 fire-and-forget;cloud 沒連上就直接丟棄(不排隊、不重送)
+ipcMain.on('resonance:data', (_e, d) => {
+  if (!d || !cloud.isConnected()) return;
+  cloud.send({ type: 'resonance', energy: Number(d.energy) || 0, centroid: Number(d.centroid) || 0 });
+});
 // 本機測試:直接觸發某情緒對應的表情 hotkey
 ipcMain.handle('vts:test-expression', (_e, emotion) => {
   const map = (settings.get('vts') || {}).emotions || {};
@@ -197,6 +203,11 @@ function reconnectObs() {
 app.whenReady().then(() => {
   // 把舊版明文機密(token / OBS 密碼 / VTS token)就地升級成 OS 加密儲存
   try { settings.migrateSecrets(); } catch (e) { pushLog({ level: 'warn', msg: `機密加密升級略過:${e?.message || e}` }); }
+
+  // 權限白名單:只允許「麥克風」(歌聲共鳴需要),其餘(相機 / 定位 / 通知…)一律拒絕。
+  // renderer 跑在 sandbox,getUserMedia 仍要 main 這關放行。
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
 
   // 接 log → buffer + 廣播 renderer
   cloud.on('log', pushLog);

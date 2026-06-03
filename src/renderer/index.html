@@ -95,6 +95,24 @@
       <div class="form-actions">
         <button id="obs-save">儲存 + 重連</button>
       </div>
+
+      <!-- 🎤 歌聲共鳴:抓麥分析 → 推給 cloud → OBS 的共鳴 overlay -->
+      <div class="howto" style="margin-top:18px">
+        <div class="howto-title">🎤 歌聲共鳴 → OBS overlay</div>
+        <p class="howto-note" style="margin-bottom:10px">
+          OBS 瀏覽器來源拿不到麥克風,所以由桌面端抓麥、只把<strong>共鳴數值</strong>(音量 + 頻率)推給 overlay,<strong>不傳聲音檔</strong>。
+          在後台「🎵 聲音共鳴」拿網址貼進 OBS 瀏覽器來源,再開下面開關。
+        </p>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input id="reso-enabled" type="checkbox"> <span>啟用歌聲共鳴(把麥克風共鳴推給 OBS overlay)</span>
+        </label>
+        <label style="margin-top:10px">麥克風裝置</label>
+        <select id="reso-device"><option value="">預設麥克風</option></select>
+        <div style="margin-top:10px;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden">
+          <i id="reso-meter" style="display:block;height:100%;width:0;border-radius:999px;background:#28dc96;transition:width .1s linear"></i>
+        </div>
+        <div class="hint" id="reso-hint" style="margin-top:6px">需 cloud 已連線。開啟後唱歌,OBS 的共鳴 overlay 就會動。</div>
+      </div>
     </div>
 
     <!-- Tab: VTuber(VTube Studio) -->
