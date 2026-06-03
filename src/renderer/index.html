@@ -103,7 +103,7 @@
           OBS 瀏覽器來源拿不到麥克風,所以由桌面端抓麥、只把<strong>共鳴數值</strong>(音量 + 頻率)推給 overlay,<strong>不傳聲音檔</strong>。
           在後台「🎵 聲音共鳴」拿網址貼進 OBS 瀏覽器來源,再開下面開關。
         </p>
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <label class="check-row">
           <input id="reso-enabled" type="checkbox"> <span>啟用歌聲共鳴(把麥克風共鳴推給 OBS overlay)</span>
         </label>
         <label style="margin-top:10px">麥克風裝置</label>
@@ -127,7 +127,7 @@
         </ol>
         <div class="howto-note">需要先在「進階 / TTS」啟用語音,嘴型才會跟著動(用 TTS 音訊驅動)。</div>
       </div>
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <label class="check-row">
         <input id="vts-enabled" type="checkbox"> <span>啟用 VTube Studio 連動</span>
       </label>
       <div class="form-row" style="margin-top:10px">
