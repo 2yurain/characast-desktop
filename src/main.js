@@ -201,6 +201,12 @@ function reconnectObs() {
 
 // ======= 啟動 =======
 app.whenReady().then(() => {
+  // 舊網域 onrender → characast.co(網域收斂;舊裝置存著 onrender 會被位址驗證鎖死)
+  try {
+    const n = settings.migrateCloudUrls();
+    if (n) pushLog({ level: 'info', msg: `cloud 位址已從舊網域 onrender 自動更新為 characast.co(${n} 項)` });
+  } catch (e) { pushLog({ level: 'warn', msg: `cloud 位址遷移略過:${e?.message || e}` }); }
+
   // 把舊版明文機密(token / OBS 密碼 / VTS token)就地升級成 OS 加密儲存
   try { settings.migrateSecrets(); } catch (e) { pushLog({ level: 'warn', msg: `機密加密升級略過:${e?.message || e}` }); }
 

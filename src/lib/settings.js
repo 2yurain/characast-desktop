@@ -128,6 +128,24 @@ module.exports = {
     const clone = JSON.parse(JSON.stringify(store.store));
     return transformSecrets(clone, 'dec'); // 全包解密(給 UI 顯示)
   },
+  // 開機時把舊網域 characast-core.onrender.com 的 cloud 位址就地改成 characast.co。
+  // (網域收斂後 validateCloudUrl 只放行 characast.co,舊裝置存著 onrender 會被鎖死、無法配對/連線。)
+  // 回傳改了幾個 key。
+  migrateCloudUrls: () => {
+    let changed = 0;
+    for (const key of ['cloudUrl', 'cloudHttpsUrl']) {
+      const raw = store.get(key);
+      if (typeof raw !== 'string' || !raw) continue;
+      let u;
+      try { u = new URL(raw); } catch { continue; }
+      if (u.hostname.toLowerCase() === 'characast-core.onrender.com') {
+        u.hostname = 'characast.co';
+        store.set(key, u.toString());
+        changed++;
+      }
+    }
+    return changed;
+  },
   // 開機時把舊的明文機密就地升級成密文(safeStorage 可用才做)
   migrateSecrets: () => {
     if (!canEncrypt()) return;
@@ -144,6 +162,7 @@ module.exports = {
 // ============== Cloud URL 驗證(防 token 被導去攻擊者) ==============
 // 規則:必須是 wss(或本機 ws),且 host 屬於 characast.co 或本機。
 // 不合法 → 回 { ok:false } 讓呼叫端拒絕寫入,維持原值。
+// 舊網域 characast-core.onrender.com 已統一收斂到 characast.co(見 migrateCloudUrls)。
 const ALLOWED_HOST_SUFFIXES = ['characast.co'];
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1'];
 
