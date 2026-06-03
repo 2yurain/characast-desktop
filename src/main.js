@@ -48,6 +48,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,        // renderer 跑在 OS sandbox(preload 只用 contextBridge/ipcRenderer,相容)
     },
     autoHideMenuBar: true,
   });

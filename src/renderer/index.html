@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- CSP:全本機資源,擋掉注入的 inline script / 外部載入(防禦縱深)。
+     script 只允許本機 app.js;TTS 走 data: 音訊;inline style 屬性(display 切換)放行。 -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
 <title>CharaCast Desktop</title>
 <link rel="stylesheet" href="styles.css">
 </head>
