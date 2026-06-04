@@ -53,6 +53,12 @@ function createWindow() {
     autoHideMenuBar: true,
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // 縱深防禦:UI 是本機檔,正常不會開新視窗或導航到外站。
+  // 一律拒絕 window.open / target=_blank,並擋掉任何離開本機 UI 的 navigation。
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith('file://')) e.preventDefault();
+  });
   // mainWindow.webContents.openDevTools({ mode: 'detach' });
 }
 
@@ -78,6 +84,15 @@ ipcMain.handle('settings:set', (_e, patch) => {
           continue;
         }
         settings.set(k, chk.value);
+        continue;
+      }
+      // resonance:只取已知欄位與型別,擋掉亂塞鍵 / 原型污染 / 巨型字串
+      if (k === 'resonance') {
+        const src = (v && typeof v === 'object') ? v : {};
+        settings.set('resonance', {
+          enabled: Boolean(src.enabled),
+          deviceId: String(src.deviceId || '').slice(0, 256),
+        });
         continue;
       }
       settings.set(k, v);
@@ -148,6 +163,10 @@ ipcMain.handle('pair:exchange', async (_e, code) => {
     });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    // 驗 token 型別/長度後再存(防 server 回傳異常 / 被中間人塞髒值)
+    if (typeof j.desktopToken !== 'string' || j.desktopToken.length < 16 || j.desktopToken.length > 4096) {
+      throw new Error('回傳的 token 格式不正確');
+    }
     settings.set('desktopToken', j.desktopToken);
     pushLog({ level: 'info', msg: `配對成功:tenantId=${j.tenantId?.slice(0,8)}…` });
     // 立即連線
