@@ -434,7 +434,7 @@ $('tts-test')?.addEventListener('click', () => {
 // OBS 拿不到麥 → 由這裡(renderer 有完整 getUserMedia)抓麥、偵測真實音高(F0,自相關)+ 響度,
 // 用 IPC 送 { energy, freq } 給 main → cloud → overlay。聲音本機分析,只送數值,不送音檔。
 let _resoStream = null, _resoCtx = null, _resoTimer = null;
-let _resoEnergy = 0, _resoFreq = 0;
+let _resoEnergy = 0, _resoFreq = 0, _resoCentroid = 0;   // centroid = 共鳴明亮度(胸→頭)
 
 const RESO_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 function freqToNoteName(f) {
@@ -505,6 +505,8 @@ async function resoStart() {
   an.fftSize = 2048;                       // 2048 取樣 → 可偵測到 ~43Hz 以上(歌唱足夠)
   srcNode.connect(an);
   const buf = new Float32Array(an.fftSize);
+  const fd = new Uint8Array(an.frequencyBinCount);
+  const binHz = sr / an.fftSize;
 
   // 音高偵測(自相關)是 O(n²),放在 ~20/s 的計時器跑(不用每幀);送密一點 overlay 才滑順
   _resoTimer = setInterval(() => {
@@ -514,10 +516,15 @@ async function resoStart() {
     _resoEnergy += (Math.min(100, rms * 320) - _resoEnergy) * 0.5;
     const f = resoDetectPitch(buf, sr);
     _resoFreq = f > 0 ? f : 0;
+    // 共鳴明亮度 = 頻譜質心(只在有聲音時更新,靜音時保留上次值不亂跳)
+    an.getByteFrequencyData(fd);
+    let mag = 0, wsum = 0;
+    for (let i = 1; i < fd.length; i++) { const mg = fd[i]; mag += mg; wsum += (i * binHz) * mg; }
+    if (rms > 0.012 && mag > 0) _resoCentroid += ((wsum / mag) - _resoCentroid) * 0.3;
     const m = $('reso-meter'); if (m) m.style.width = Math.min(100, _resoEnergy) + '%';
     const note = _resoFreq ? `♪ ${freqToNoteName(_resoFreq)}(${Math.round(_resoFreq)}Hz)` : '靜音中';
     setResoHint(`✓ 歌聲共鳴開啟中 — ${note}`);
-    try { window.characast.resonanceData?.({ energy: _resoEnergy, freq: _resoFreq }); } catch {}
+    try { window.characast.resonanceData?.({ energy: _resoEnergy, freq: _resoFreq, centroid: Math.round(_resoCentroid) }); } catch {}
   }, 50);
   setResoHint('✓ 歌聲共鳴開啟中 — 唱歌看 OBS overlay');
 }
@@ -528,7 +535,7 @@ function resoStop() {
   if (_resoStream) { try { _resoStream.getTracks().forEach((t) => t.stop()); } catch {} _resoStream = null; }
   const m = $('reso-meter'); if (m) m.style.width = '0%';
   _resoEnergy = 0; _resoFreq = 0;
-  try { window.characast.resonanceData?.({ energy: 0, freq: 0 }); } catch {}  // 推一發歸零讓 overlay 淡出
+  try { window.characast.resonanceData?.({ energy: 0, freq: 0, centroid: _resoCentroid }); } catch {}  // 推一發歸零讓 overlay 淡出
   setResoHint('已停止。需 cloud 已連線,開啟後唱歌 OBS overlay 就會動。');
 }
 

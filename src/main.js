@@ -107,7 +107,7 @@ ipcMain.on('tts:amplitude', (_e, v) => { vts.setMouth(v); });
 // 高頻 fire-and-forget;cloud 沒連上就直接丟棄(不排隊、不重送)
 ipcMain.on('resonance:data', (_e, d) => {
   if (!d || !cloud.isConnected()) return;
-  cloud.send({ type: 'resonance', energy: Number(d.energy) || 0, freq: Number(d.freq) || 0 });
+  cloud.send({ type: 'resonance', energy: Number(d.energy) || 0, freq: Number(d.freq) || 0, centroid: Number(d.centroid) || 0 });
 });
 // 本機測試:直接觸發某情緒對應的表情 hotkey
 ipcMain.handle('vts:test-expression', (_e, emotion) => {

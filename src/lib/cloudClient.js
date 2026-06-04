@@ -8,7 +8,7 @@
 //     { type: 'pong' }
 //     { type: 'mic.state', muted, durationSeconds }
 //     { type: 'obs.scene_changed', scene }
-//     { type: 'resonance', energy, freq }       歌聲共鳴 音高 F0(高頻 ~12/s,雲端轉發給 OBS overlay)
+//     { type: 'resonance', energy, freq, centroid }  歌聲共鳴(F0 音高 + 共鳴明亮度;高頻 ~20/s,轉發給 overlay)
 //   server → client:
 //     { type: 'auth.ok' | 'auth.fail' }
 //     { type: 'ping' }
