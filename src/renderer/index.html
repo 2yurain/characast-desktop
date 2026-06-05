@@ -67,8 +67,8 @@
 
     <!-- Tab: OBS -->
     <div class="tab-pane active" data-tab="obs">
-      <div class="howto">
-        <div class="howto-title">📖 第一次設定怎麼做(3 步)</div>
+      <details class="howto">
+        <summary class="howto-title">📖 第一次設定怎麼做(3 步)</summary>
         <ol class="howto-list">
           <li>開 <strong>OBS Studio</strong>(沒裝 → <a href="https://obsproject.com" target="_blank">下載</a>)</li>
           <li>上方選單 <strong>Tools / 工具</strong> → <strong>WebSocket Server Settings</strong>
@@ -79,7 +79,7 @@
           <li>把密碼貼到下方 <code>Password</code> 欄 → 點「儲存 + 重連」</li>
         </ol>
         <div class="howto-note">⚠ 注意:「隱藏」audio source(眼睛 icon)不是「靜音」。靜音才會觸發 — 點 input 旁邊的喇叭 icon 才對。</div>
-      </div>
+      </details>
       <div class="form-row">
         <div class="form-col">
           <label>Host</label>
@@ -117,8 +117,8 @@
 
     <!-- Tab: VTuber(VTube Studio) -->
     <div class="tab-pane" data-tab="vts">
-      <div class="howto">
-        <div class="howto-title">📖 讓 AI 角色變成會動的 VTuber(4 步)</div>
+      <details class="howto">
+        <summary class="howto-title">📖 讓 AI 角色變成會動的 VTuber(4 步)</summary>
         <ol class="howto-list">
           <li>開 <strong>VTube Studio</strong> → 設定 → <strong>啟用 API</strong>(預設 port 8001)</li>
           <li>下方勾「啟用」→ 點「連線 / 授權」→ <strong>回 VTS 按「允許」</strong>那個外掛視窗</li>
@@ -126,7 +126,7 @@
           <li>嘴型:把模型嘴巴的 InputParameter 綁到 <code>MouthOpen</code> 或自建的 <code>CharaCastMouth</code></li>
         </ol>
         <div class="howto-note">需要先在「進階 / TTS」啟用語音,嘴型才會跟著動(用 TTS 音訊驅動)。</div>
-      </div>
+      </details>
       <label class="check-row">
         <input id="vts-enabled" type="checkbox"> <span>啟用 VTube Studio 連動</span>
       </label>
@@ -195,11 +195,11 @@
       <span class="hint" id="tts-status">瀏覽器政策:首次需點一下才允許播音</span>
     </div>
 
-    <!-- Log(永遠在最下面)-->
-    <div class="log-section">
-      <div class="log-header">📜 即時 log</div>
+    <!-- Log(可折疊,預設收起)-->
+    <details class="log-section">
+      <summary>📜 即時 log</summary>
       <div id="log-list" class="log-list"></div>
-    </div>
+    </details>
   </section>
 </div>
 
