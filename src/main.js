@@ -39,7 +39,7 @@ function pushLog(entry) {
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 720,
-    height: 640,
+    height: 700,
     minWidth: 480,
     minHeight: 480,
     title: 'CharaCast Desktop',
