@@ -209,16 +209,25 @@ class ObsClient extends EventEmitter {
     existingInputs.push(inputName);
   }
 
-  /** 在場景放一個文字佔位(例:👉 遊戲畫面放這),提示主播自己補擷取/鏡頭 */
-  async _ensureTextPlaceholder(sceneName, label, textKind, existingInputs) {
-    const inputName = `${sceneName}・${label}`.slice(0, 60);
+  /**
+   * 在場景放一個文字佔位(例:👉 遊戲畫面放這),提示主播自己補擷取/鏡頭。
+   * ph = { label, xf, yf };xf/yf 是畫面比例位置,用 alignment=0(物件中心對準座標)→ 各自落定點、不疊在左上角。
+   */
+  async _ensureTextPlaceholder(sceneName, ph, textKind, w, h, existingInputs) {
+    const inputName = `${sceneName}・${ph.label}`.slice(0, 60);
     if (existingInputs.includes(inputName)) return;
-    await this.obs.call('CreateInput', {
+    const r = await this.obs.call('CreateInput', {
       sceneName, inputName, inputKind: textKind,
-      inputSettings: { text: label },
+      inputSettings: { text: ph.label, font: { face: 'Microsoft JhengHei', size: 48 } },
       sceneItemEnabled: true,
     });
     existingInputs.push(inputName);
+    try {
+      await this.obs.call('SetSceneItemTransform', {
+        sceneName, sceneItemId: r.sceneItemId,
+        sceneItemTransform: { alignment: 0, positionX: Math.round((ph.xf ?? 0.5) * w), positionY: Math.round((ph.yf ?? 0.5) * h) },
+      });
+    } catch { /* 舊 OBS 不支援 transform 就算了,至少建出來了 */ }
   }
 
   /**
@@ -241,7 +250,7 @@ class ObsClient extends EventEmitter {
           if (url) await this._ensureBrowser(scene.name, src.inputName, url, w, h, existingInputs).catch((e) => this.emit('log', { level: 'warn', msg: `obs:建來源 ${src.inputName} 失敗 ${e.message}` }));
         }
         if (textKind) for (const ph of (scene.placeholders || [])) {
-          await this._ensureTextPlaceholder(scene.name, ph, textKind, existingInputs).catch(() => {});
+          await this._ensureTextPlaceholder(scene.name, ph, textKind, w, h, existingInputs).catch(() => {});
         }
         report.push({ scene: scene.name, status: 'created' });
         this.emit('log', { level: 'info', msg: `obs:✓ 建好場景「${scene.name}」` });
