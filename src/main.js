@@ -191,7 +191,7 @@ ipcMain.handle('connect:obs', () => { reconnectObs(); return { ok: true }; });
 // 一鍵設置 OBS 場景:跟雲端要 overlay 網址 → 在 OBS 建「遊戲 / 聊天 / 唱歌」場景(只加不減,同名場景跳過)
 const SCENE_SRC = {
   avatar:    { key: 'avatar',    inputName: 'CharaCast 形象' },
-  overlay:   { key: 'overlay',   inputName: 'CharaCast 觀眾卡片' },
+  overlay:   { key: 'overlay',   inputName: 'CharaCast 多功能overlay' },
   resonance: { key: 'resonance', inputName: 'CharaCast 聲音共鳴' },
   songqueue: { key: 'songqueue', inputName: 'CharaCast 點歌清單' },
 };
