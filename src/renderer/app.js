@@ -185,7 +185,7 @@ $('obs-setup-scenes')?.addEventListener('click', async () => {
   if (!scenes.length) { out.textContent = '⚠ 至少勾一個場景'; return; }
   btn.disabled = true; out.textContent = '建立中…';
   try {
-    const res = await window.characast.setupObsScenes({ scenes, addPlaceholders: $('scene-placeholders').checked });
+    const res = await window.characast.setupObsScenes({ scenes });
     if (!res || res.ok === false) {
       out.textContent = '✗ ' + (res?.reason || '失敗');
     } else {

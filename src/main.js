@@ -195,14 +195,11 @@ const SCENE_SRC = {
   resonance: { key: 'resonance', inputName: 'CharaCast 聲音共鳴' },
   songqueue: { key: 'songqueue', inputName: 'CharaCast 點歌清單' },
 };
-// 佔位給定點位置(xf/yf = 畫面比例),各自落位、不疊在左上角
+// 不再放文字佔位(會爆大疊最上面);場景只建乾淨的 CharaCast overlay,遊戲/鏡頭主播自己加。
 const SCENE_TEMPLATES = {
-  game: { name: '遊戲', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay],
-    placeholders: [{ label: '👉 遊戲畫面放這(刪掉我)', xf: 0.5, yf: 0.42 }, { label: '👉 視訊鏡頭(刪掉我)', xf: 0.82, yf: 0.82 }] },
-  chat: { name: '聊天', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay],
-    placeholders: [{ label: '👉 視訊鏡頭(刪掉我)', xf: 0.78, yf: 0.5 }] },
-  sing: { name: '唱歌', sources: [SCENE_SRC.avatar, SCENE_SRC.resonance, SCENE_SRC.songqueue],
-    placeholders: [{ label: '👉 視訊鏡頭(刪掉我)', xf: 0.82, yf: 0.82 }] },
+  game: { name: '遊戲', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
+  chat: { name: '聊天', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
+  sing: { name: '唱歌', sources: [SCENE_SRC.avatar, SCENE_SRC.resonance, SCENE_SRC.songqueue] },
 };
 ipcMain.handle('obs:setup-scenes', async (_e, opts) => {
   try {
