@@ -175,6 +175,33 @@ $('obs-save').addEventListener('click', async () => {
   window.characast.reconnectObs();
 });
 
+$('obs-setup-scenes')?.addEventListener('click', async () => {
+  const btn = $('obs-setup-scenes');
+  const out = $('scene-result');
+  const scenes = [];
+  if ($('scene-game').checked) scenes.push('game');
+  if ($('scene-chat').checked) scenes.push('chat');
+  if ($('scene-sing').checked) scenes.push('sing');
+  if (!scenes.length) { out.textContent = '⚠ 至少勾一個場景'; return; }
+  btn.disabled = true; out.textContent = '建立中…';
+  try {
+    const res = await window.characast.setupObsScenes({ scenes, addPlaceholders: $('scene-placeholders').checked });
+    if (!res || res.ok === false) {
+      out.textContent = '✗ ' + (res?.reason || '失敗');
+    } else {
+      const made = res.report.filter((r) => r.status === 'created').map((r) => r.scene);
+      const skipped = res.report.filter((r) => r.status === 'skipped_exists').map((r) => r.scene);
+      let m = made.length ? `✓ 已建:${made.join('、')}` : '';
+      if (skipped.length) m += `${m ? ' / ' : ''}已存在跳過:${skipped.join('、')}`;
+      out.textContent = m || '✓ 完成';
+    }
+  } catch (e) {
+    out.textContent = '✗ ' + (e.message || e);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 $('cloud-save').addEventListener('click', async () => {
   await window.characast.setSettings({
     cloudUrl: $('cloud-url').value.trim(),

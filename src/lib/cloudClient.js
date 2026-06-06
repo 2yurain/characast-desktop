@@ -66,6 +66,20 @@ class CloudClient extends EventEmitter {
 
   isConnected() { return Boolean(this.ws && this.ws.readyState === 1 && this.authed); }
 
+  /** 跟雲端要 overlay 網址(一鍵設置 OBS 用)。回 Promise<urls> 或 reject(未連 / 逾時)。 */
+  requestOverlayUrls(timeoutMs = 8000) {
+    return new Promise((resolve, reject) => {
+      if (!this.isConnected()) return reject(new Error('雲端未連線,無法取得 overlay 網址'));
+      const onMsg = (msg) => {
+        if (msg && msg.type === 'overlay.urls') { cleanup(); resolve(msg.urls || {}); }
+      };
+      const cleanup = () => { clearTimeout(timer); this.off('message', onMsg); };
+      const timer = setTimeout(() => { cleanup(); reject(new Error('雲端回 overlay 網址逾時')); }, timeoutMs);
+      this.on('message', onMsg);
+      this.send({ type: 'overlay.urls.request' });
+    });
+  }
+
   getStatus() {
     return {
       url: this.url,

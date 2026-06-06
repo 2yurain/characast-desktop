@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('characast', {
   revokePair: () => ipcRenderer.invoke('pair:revoke'),
   reconnectCloud: () => ipcRenderer.invoke('connect:cloud'),
   reconnectObs: () => ipcRenderer.invoke('connect:obs'),
+  setupObsScenes: (opts) => ipcRenderer.invoke('obs:setup-scenes', opts),
   reconnectVts: () => ipcRenderer.invoke('connect:vts'),
   reauthVts: () => ipcRenderer.invoke('vts:reauth'),
   testVtsExpression: (emotion) => ipcRenderer.invoke('vts:test-expression', emotion),

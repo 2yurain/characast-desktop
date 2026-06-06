@@ -97,6 +97,20 @@
         <button id="obs-save">儲存 + 重連</button>
       </div>
 
+      <!-- 🎬 一鍵設置場景:在 OBS 建好「遊戲 / 聊天 / 唱歌」場景 + CharaCast overlay -->
+      <div class="howto" style="margin-top:18px">
+        <div class="howto-title">🎬 一鍵設置場景</div>
+        <p class="howto-note" style="margin-bottom:8px">幫你在 OBS 一次建好「遊戲 / 聊天 / 唱歌」三個場景,CharaCast overlay(形象 / 觀眾卡 / 共鳴 / 點歌)自動擺好<br>只會「新增」,同名場景會跳過、不動你現有設定<br>需 OBS 已連線 + 已配對</p>
+        <label class="check-row"><input id="scene-game" type="checkbox" checked> <span>🎮 遊戲</span></label>
+        <label class="check-row"><input id="scene-chat" type="checkbox" checked> <span>💬 聊天</span></label>
+        <label class="check-row"><input id="scene-sing" type="checkbox" checked> <span>🎤 唱歌</span></label>
+        <label class="check-row" style="margin-top:6px"><input id="scene-placeholders" type="checkbox" checked> <span>放「遊戲畫面 / 視訊放這」文字佔位</span></label>
+        <div class="form-actions" style="margin-top:10px">
+          <button id="obs-setup-scenes">🎬 一鍵建場景</button>
+        </div>
+        <div class="hint" id="scene-result" style="margin-top:6px"></div>
+      </div>
+
       <!-- 🎤 歌聲共鳴:抓麥分析 → 推給 cloud → OBS 的共鳴 overlay -->
       <div class="howto" style="margin-top:18px">
         <div class="howto-title">🎤 歌聲共鳴 → OBS overlay</div>

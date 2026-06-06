@@ -188,6 +188,32 @@ ipcMain.handle('pair:revoke', () => {
 ipcMain.handle('connect:cloud', () => { reconnectCloud(); return { ok: true }; });
 ipcMain.handle('connect:obs', () => { reconnectObs(); return { ok: true }; });
 
+// 一鍵設置 OBS 場景:跟雲端要 overlay 網址 → 在 OBS 建「遊戲 / 聊天 / 唱歌」場景(只加不減,同名場景跳過)
+const SCENE_SRC = {
+  avatar:    { key: 'avatar',    inputName: 'CharaCast 形象' },
+  overlay:   { key: 'overlay',   inputName: 'CharaCast 觀眾卡片' },
+  resonance: { key: 'resonance', inputName: 'CharaCast 聲音共鳴' },
+  songqueue: { key: 'songqueue', inputName: 'CharaCast 點歌清單' },
+};
+const SCENE_TEMPLATES = {
+  game: { name: '遊戲', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay], placeholders: ['👉 遊戲畫面放這', '👉 視訊鏡頭放這'] },
+  chat: { name: '聊天', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay], placeholders: ['👉 視訊鏡頭放這'] },
+  sing: { name: '唱歌', sources: [SCENE_SRC.avatar, SCENE_SRC.resonance, SCENE_SRC.songqueue], placeholders: ['👉 視訊鏡頭放這'] },
+};
+ipcMain.handle('obs:setup-scenes', async (_e, opts) => {
+  try {
+    if (!obs.isConnected()) return { ok: false, reason: 'OBS 未連線 — 先在「OBS」分頁連上 OBS' };
+    if (!cloud.isConnected()) return { ok: false, reason: '雲端未連線 — 先完成配對' };
+    const pick = (opts && Array.isArray(opts.scenes) && opts.scenes.length) ? opts.scenes : ['game', 'chat', 'sing'];
+    const addPlaceholders = !opts || opts.addPlaceholders !== false;
+    const urls = await cloud.requestOverlayUrls();
+    const scenes = pick.map((k) => SCENE_TEMPLATES[k]).filter(Boolean);
+    return await obs.setupScenes({ scenes, urls, addPlaceholders });
+  } catch (e) {
+    return { ok: false, reason: e.message };
+  }
+});
+
 function reconnectVts() {
   const cfg = settings.get('vts') || {};
   vts.disconnect();

@@ -171,6 +171,88 @@ class ObsClient extends EventEmitter {
     }
   }
 
+  // ===== 一鍵設置場景(只加不減,冪等)=====
+
+  async _sceneNames() {
+    const r = await this.obs.call('GetSceneList');
+    return (r.scenes || []).map((s) => s.sceneName);
+  }
+
+  async _inputNames() {
+    const r = await this.obs.call('GetInputList');
+    return (r.inputs || []).map((i) => i.inputName);
+  }
+
+  /** OBS 畫布大小(browser source 鋪滿用);拿不到回 1080p */
+  async _canvasSize() {
+    try { const r = await this.obs.call('GetVideoSettings'); return { w: r.baseWidth || 1920, h: r.baseHeight || 1080 }; }
+    catch { return { w: 1920, h: 1080 }; }
+  }
+
+  /** 找一個這台 OBS 有的文字來源類別(跨平台命名不同);沒有就回 null → 不放佔位 */
+  async _textKind() {
+    try { const r = await this.obs.call('GetInputKindList'); return (r.inputKinds || []).find((k) => /^text_/.test(k)) || null; }
+    catch { return null; }
+  }
+
+  /** 確保某 browser source 存在於某場景:不存在就建、已存在就把它也掛進這個場景(同一 source 可跨場景共用) */
+  async _ensureBrowser(sceneName, inputName, url, w, h, existingInputs) {
+    if (existingInputs.includes(inputName)) {
+      try { await this.obs.call('CreateSceneItem', { sceneName, sourceName: inputName, sceneItemEnabled: true }); } catch { /* 已在此場景 */ }
+      return;
+    }
+    await this.obs.call('CreateInput', {
+      sceneName, inputName, inputKind: 'browser_source',
+      inputSettings: { url, width: w, height: h },
+      sceneItemEnabled: true,
+    });
+    existingInputs.push(inputName);
+  }
+
+  /** 在場景放一個文字佔位(例:👉 遊戲畫面放這),提示主播自己補擷取/鏡頭 */
+  async _ensureTextPlaceholder(sceneName, label, textKind, existingInputs) {
+    const inputName = `${sceneName}・${label}`.slice(0, 60);
+    if (existingInputs.includes(inputName)) return;
+    await this.obs.call('CreateInput', {
+      sceneName, inputName, inputKind: textKind,
+      inputSettings: { text: label },
+      sceneItemEnabled: true,
+    });
+    existingInputs.push(inputName);
+  }
+
+  /**
+   * 一鍵建場景。scenes = [{ name, sources:[{key,inputName}], placeholders:[label] }],urls = {avatar,overlay,resonance,songqueue}。
+   * 安全鐵則:**同名場景已存在 → 整個跳過,絕不動既有設定**;只建缺的。回每個場景的結果報告。
+   */
+  async setupScenes({ scenes, urls, addPlaceholders = true }) {
+    if (!this.connected || !this.obs) return { ok: false, reason: 'OBS 未連線' };
+    const { w, h } = await this._canvasSize();
+    const textKind = addPlaceholders ? await this._textKind() : null;
+    const existingScenes = await this._sceneNames();
+    const existingInputs = await this._inputNames();
+    const report = [];
+    for (const scene of scenes) {
+      if (existingScenes.includes(scene.name)) { report.push({ scene: scene.name, status: 'skipped_exists' }); continue; }
+      try {
+        await this.obs.call('CreateScene', { sceneName: scene.name });
+        for (const src of scene.sources || []) {
+          const url = urls[src.key];
+          if (url) await this._ensureBrowser(scene.name, src.inputName, url, w, h, existingInputs).catch((e) => this.emit('log', { level: 'warn', msg: `obs:建來源 ${src.inputName} 失敗 ${e.message}` }));
+        }
+        if (textKind) for (const ph of (scene.placeholders || [])) {
+          await this._ensureTextPlaceholder(scene.name, ph, textKind, existingInputs).catch(() => {});
+        }
+        report.push({ scene: scene.name, status: 'created' });
+        this.emit('log', { level: 'info', msg: `obs:✓ 建好場景「${scene.name}」` });
+      } catch (e) {
+        report.push({ scene: scene.name, status: 'error', error: e.message });
+        this.emit('log', { level: 'err', msg: `obs:建場景「${scene.name}」失敗 ${e.message}` });
+      }
+    }
+    return { ok: true, report };
+  }
+
   async _open() {
     if (!this.config) return;
     if (this.obs) { try { this.obs.disconnect(); } catch {} this.obs = null; }
