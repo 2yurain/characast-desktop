@@ -95,7 +95,7 @@ function sanitizeVisionHud(v) {
     if (++games > 30 || !cfg || typeof cfg !== 'object') continue;
     let zones = [];
     if (Array.isArray(cfg.zones)) {
-      zones = cfg.zones.slice(0, 6).map(cleanZone).filter(Boolean);
+      zones = cfg.zones.slice(0, 12).map(cleanZone).filter(Boolean);
     } else if (cfg.kf) {   // 舊格式 → 單一 rate 框
       const z = cleanZone({ id: 'kf', label: '戰鬥', mode: 'rate', rect: cfg.kf }, 0);
       if (z) zones = [z];

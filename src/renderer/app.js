@@ -1279,7 +1279,7 @@ $('zone-save')?.addEventListener('click', async () => {
   if (!game) { setKfHint('先填遊戲名'); return; }
   if (!_visHud[game]) _visHud[game] = {};
   if (!Array.isArray(_visHud[game].zones)) _visHud[game].zones = [];
-  if (_visHud[game].zones.length >= 6) { setKfHint('一款遊戲最多 6 個框'); return; }
+  if (_visHud[game].zones.length >= 12) { setKfHint('一款遊戲最多 12 個框'); return; }
   const label = ($('zone-name')?.value || '').trim().slice(0, 16) || '區域';
   const mode = $('zone-mode')?.value === 'ocr' ? 'ocr' : 'rate';
   const id = 'z' + Date.now().toString(36);
