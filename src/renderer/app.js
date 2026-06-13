@@ -1120,7 +1120,7 @@ async function ensureOcr() {
     const createWorker = T.createWorker || (T.default && T.default.createWorker);
     if (!createWorker) throw new Error('tesseract.js 沒有 createWorker(CDN 載入格式不符)');
     const worker = await createWorker('eng');
-    await worker.setParameters({ tessedit_char_whitelist: '0123456789/:', tessedit_pageseg_mode: '7' });
+    await worker.setParameters({ tessedit_char_whitelist: '0123456789/:', tessedit_pageseg_mode: '8' });  // 8=單字,對短數字(單/兩位)比 7=單行 準
     _ocrWorker = worker;
     appendLog({ level: 'info', msg: 'Vision OCR:tesseract 已就緒' });
     return worker;
