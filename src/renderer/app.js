@@ -836,12 +836,12 @@ const KF_TICK_MS = 2500;        // rate 框掃描頻率
 const KF_DIFF = 6;              // 區域 aHash 漢明距離 > 此 = 有事件(那塊變了)
 const KF_WINDOW_MS = 14_000;    // 事件統計窗
 const KF_HOT = 3;               // 窗內事件數 >= 此 = 激戰(rate)
-const OCR_TICK_MS = 4000;       // ocr 框掃描頻率(比 rate 重,放慢)
-const OCR_MIN_CONF = 65;        // tesseract 信心低於此 → 不送(寧可不報也不報錯)
-const OCR_STABLE_N = 2;         // 連續讀到同值 N 次才送(殺瞬間誤判)
+const OCR_TICK_MS = 3000;       // ocr 框掃描頻率
+const OCR_VOTE_WINDOW = 5;      // 看最近幾次讀數
+const OCR_VOTE_MIN = 3;         // 同值出現 N 次才送(多數決;不信 tesseract 信心,它對小字常回 0)
 const VISION_COMBAT_LABEL = '團戰/戰鬥中';
 let _visHud = {}, _kfTimer = null, _kfBusy = false;
-let _ocrTimer = null, _ocrBusy = false, _ocrWorker = null, _ocrLoading = null, _ocrLastText = {}, _ocrPending = {};
+let _ocrTimer = null, _ocrBusy = false, _ocrWorker = null, _ocrLoading = null, _ocrLastText = {}, _ocrHist = {};
 // 每個 rate zone 各自的變化事件環:{ [zoneId]: { last:hashStr, events:[ts…] } }
 let _zoneState = {};
 // 框選 UI 暫存:正在拖的框 + 剛拖好待命名的 rect
@@ -867,7 +867,7 @@ async function startVision(tier) {
     _visTimer = setInterval(visTick, VISION_TICK_MS[tier] || VISION_TICK_MS.medium);
     _zoneState = {};
     _kfTimer = setInterval(rateTick, KF_TICK_MS);   // rate 框偵測(有框才會動)
-    _ocrLastText = {}; _ocrPending = {};
+    _ocrLastText = {}; _ocrHist = {};
     _ocrTimer = setInterval(ocrTick, OCR_TICK_MS);  // ocr 框讀數字(有框才會動)
     setVisHint('✓ AI 看得到畫面了 — 畫面有變才判斷(本地 GPU)');
     appendLog({ level: 'info', msg: `Vision:已啟用(${tier})` });
@@ -937,7 +937,7 @@ function stopVision() {
   if (_kfTimer) { clearInterval(_kfTimer); _kfTimer = null; }
   if (_ocrTimer) { clearInterval(_ocrTimer); _ocrTimer = null; }
   _visClassifier = null; _visBusy = false; _visLastHash = null; _visLastLabel = '';
-  _zoneState = {}; _ocrLastText = {}; _ocrPending = {};
+  _zoneState = {}; _ocrLastText = {}; _ocrHist = {};
 }
 
 // 讓 AI 看畫面:開關單一入口(分頁勾選 + 快速開關都走這)
@@ -1186,20 +1186,21 @@ async function ocrTick() {
     for (const z of zones) {
       const crop = await cropForOcr(shot, z.rect);
       if (!crop) { appendLog({ level: 'warn', msg: `Vision 🔢 ${z.label}:框太小,放大一點` }); continue; }
-      let raw = '', conf = 0;
-      try { const res = await worker.recognize(crop); raw = (res?.data?.text || '').replace(/\s+/g, ' ').trim(); conf = res?.data?.confidence || 0; }
+      let raw = '';
+      try { const res = await worker.recognize(crop); raw = (res?.data?.text || '').replace(/\s+/g, ' ').trim(); }
       catch (e) { appendLog({ level: 'warn', msg: `Vision 🔢 ${z.label}:辨識失敗 ${e.message || e}` }); continue; }
       const val = parseOcr(raw);
-      // 診斷:每次讀到什麼都記(含被擋原因)→ 讀不到時看這條來調
-      if (conf < OCR_MIN_CONF) { _ocrPending[z.id] = null; appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:讀到「${raw}」信心 ${conf | 0} < ${OCR_MIN_CONF} → 不送` }); continue; }
-      if (!val) { _ocrPending[z.id] = null; appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:讀到「${raw}」沒數字 → 不送` }); continue; }
-      const pend = _ocrPending[z.id];
-      if (pend && pend.val === val) pend.count++; else _ocrPending[z.id] = { val, count: 1 };
-      if (_ocrPending[z.id].count < OCR_STABLE_N) { appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:暫定「${val}」(信心 ${conf | 0},第 ${_ocrPending[z.id].count}/${OCR_STABLE_N} 次)` }); continue; }
-      if (_ocrLastText[z.id] === val) continue;                          // 跟上次一樣 → 不重送
-      _ocrLastText[z.id] = val;
-      window.characast.sendStreamerVision(z.label + ':' + val);
-      appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:「${val}」(信心 ${conf | 0})→ 已上雲 ✓` });
+      // 多數決:看最近 OCR_VOTE_WINDOW 次,出現最多的非空值;達票才送(不信 tesseract 信心)
+      const hist = _ocrHist[z.id] || (_ocrHist[z.id] = []);
+      hist.push(val || null); if (hist.length > OCR_VOTE_WINDOW) hist.shift();
+      const counts = {}; let best = null, bestN = 0;
+      for (const v of hist) { if (!v) continue; counts[v] = (counts[v] || 0) + 1; if (counts[v] > bestN) { bestN = counts[v]; best = v; } }
+      if (raw || best) appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:讀到「${raw || '空'}」→ 候選「${best || '-'}」票 ${bestN}/${OCR_VOTE_MIN}` });
+      if (!best || bestN < OCR_VOTE_MIN) continue;     // 票數不夠 → 不送(零星誤判湊不到票,自然被擋)
+      if (_ocrLastText[z.id] === best) continue;       // 跟上次一樣 → 不重送
+      _ocrLastText[z.id] = best;
+      window.characast.sendStreamerVision(z.label + ':' + best);
+      appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:「${best}」→ 已上雲 ✓` });
     }
   } catch (e) {
     appendLog({ level: 'warn', msg: `Vision OCR:略過(${e.message || e})` });
