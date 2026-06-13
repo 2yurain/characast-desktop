@@ -1195,7 +1195,6 @@ async function ocrTick() {
       hist.push(val || null); if (hist.length > OCR_VOTE_WINDOW) hist.shift();
       const counts = {}; let best = null, bestN = 0;
       for (const v of hist) { if (!v) continue; counts[v] = (counts[v] || 0) + 1; if (counts[v] > bestN) { bestN = counts[v]; best = v; } }
-      if (raw || best) appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:讀到「${raw || '空'}」→ 候選「${best || '-'}」票 ${bestN}/${OCR_VOTE_MIN}` });
       if (!best || bestN < OCR_VOTE_MIN) continue;     // 票數不夠 → 不送(零星誤判湊不到票,自然被擋)
       if (_ocrLastText[z.id] === best) continue;       // 跟上次一樣 → 不重送
       _ocrLastText[z.id] = best;
