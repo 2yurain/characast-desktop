@@ -146,13 +146,26 @@ async function fillSettingsForm() {
       sel.value = val;
     }
   }
-  // 🎤 歌聲共鳴:還原開關 + 裝置,若上次是開啟就自動接續
+  // 🎤 共用麥克風 + 歌聲共鳴:還原裝置(新 mic 鍵,退回舊 resonance.deviceId)+ 開關
   const r = s.resonance || {};
+  const savedDevice = (s.mic && s.mic.deviceId) || r.deviceId || '';
+  await micRefreshDevices(savedDevice);
   if ($('reso-enabled')) {
     $('reso-enabled').checked = Boolean(r.enabled);
-    await resoRefreshDevices(r.deviceId || '');
     if (r.enabled) resoStart();
   }
+  paintQuick('qt-reso', '🎵 歌聲共鳴', Boolean(r.enabled));
+  // 🧠 讓 AI 聽你說話:還原桌面端開關(無設定 → 預設開)
+  _sttLocalOn = s.stt ? Boolean(s.stt.enabled) : true;
+  if ($('stt-enabled')) $('stt-enabled').checked = _sttLocalOn;
+  paintQuick('qt-stt', '🧠 聽你說話', _sttLocalOn);
+  // 🖼️ 讓 AI 看畫面:還原桌面端開關(無設定 → 預設開)+ 載入 Layer 2 校準檔
+  _visLocalOn = s.vision ? Boolean(s.vision.enabled) : true;
+  if ($('vision-enabled')) $('vision-enabled').checked = _visLocalOn;
+  paintQuick('qt-vision', '🖼️ 看畫面', _visLocalOn);
+  _visProfiles = (s.visionProfiles && typeof s.visionProfiles === 'object') ? s.visionProfiles : {};
+  _visHud = (s.visionHud && typeof s.visionHud === 'object') ? s.visionHud : {};
+  updateCalUI();
 
   // 帳號 tab:顯示「已配對」狀態
   const status = await window.characast.getStatus();
@@ -287,7 +300,7 @@ function appendLog(entry) {
   const list = $('log-list');
   const div = document.createElement('div');
   div.className = `log-entry ${entry.level}`;
-  const ts = new Date(entry.ts).toLocaleTimeString();
+  const ts = new Date(entry.ts || Date.now()).toLocaleTimeString();
   div.innerHTML = `<span class="ts">${ts}</span><span class="lvl">[${entry.level}]</span> ${escapeHtml(entry.msg)}`;
   list.appendChild(div);
   // cap to 200
@@ -497,11 +510,12 @@ function resoDetectPitch(buf, sampleRate) {
 
 function setResoHint(msg) { const h = $('reso-hint'); if (h) h.textContent = msg; }
 
-async function resoRefreshDevices(selectedId) {
+// 共用麥克風清單(共鳴 + STT 共用 #mic-device)
+async function micRefreshDevices(selectedId) {
   try {
     const devs = await navigator.mediaDevices.enumerateDevices();
     const mics = devs.filter((d) => d.kind === 'audioinput');
-    const sel = $('reso-device'); if (!sel) return;
+    const sel = $('mic-device'); if (!sel) return;
     const cur = selectedId != null ? selectedId : sel.value;
     sel.innerHTML = '<option value="">預設麥克風</option>'
       + mics.map((m, i) => `<option value="${escAttr(m.deviceId)}">${escTxt(m.label || ('麥克風 ' + (i + 1)))}</option>`).join('');
@@ -511,7 +525,7 @@ async function resoRefreshDevices(selectedId) {
 
 async function resoStart() {
   if (_resoStream) return;                       // 已在跑
-  const deviceId = $('reso-device')?.value || '';
+  const deviceId = $('mic-device')?.value || '';
   try {
     _resoStream = await navigator.mediaDevices.getUserMedia({ audio: {
       deviceId: deviceId ? { exact: deviceId } : undefined,
@@ -522,7 +536,7 @@ async function resoStart() {
     _resoStream = null;
     return;
   }
-  await resoRefreshDevices();                     // 拿到權限後 label 才有值,補一次清單
+  await micRefreshDevices();                      // 拿到權限後 label 才有值,補一次清單
 
   _resoCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (_resoCtx.state === 'suspended') _resoCtx.resume().catch(() => {});
@@ -567,26 +581,585 @@ function resoStop() {
 }
 
 async function persistReso() {
-  await window.characast.setSettings({ resonance: {
-    enabled: Boolean($('reso-enabled')?.checked),
-    deviceId: $('reso-device')?.value || '',
-  } });
+  await window.characast.setSettings({ resonance: { enabled: Boolean($('reso-enabled')?.checked) } });
+}
+async function persistMic() {
+  await window.characast.setSettings({ mic: { deviceId: $('mic-device')?.value || '' } });
 }
 
-$('reso-enabled')?.addEventListener('change', async (e) => {
-  await persistReso();
-  if (e.target.checked) resoStart(); else resoStop();
-});
-$('reso-device')?.addEventListener('change', async () => {
-  await persistReso();
-  if ($('reso-enabled')?.checked) { resoStop(); resoStart(); }   // 換裝置重啟
+// ⚡ 快速開關(控制中心):跟分頁裡的勾選同一個狀態,兩邊互相同步
+function paintQuick(btnId, label, on) {
+  const b = $(btnId); if (!b) return;
+  b.innerHTML = `${label}　<b style="color:${on ? '#28dc96' : '#999'}">${on ? '開' : '關'}</b>`;
+  b.style.cssText = 'padding:9px 14px;border-radius:12px;font-size:13px;cursor:pointer;'
+    + 'border:1px solid ' + (on ? 'rgba(40,220,150,.6)' : 'var(--line,#333)') + ';'
+    + 'background:' + (on ? 'rgba(40,220,150,.12)' : 'transparent') + ';color:var(--text,#eee)';
+}
+// 歌聲共鳴:開關單一入口(分頁勾選 + 快速開關都走這)
+function setResoEnabled(on) {
+  if ($('reso-enabled')) $('reso-enabled').checked = on;
+  paintQuick('qt-reso', '🎵 歌聲共鳴', on);
+  persistReso();
+  if (on) resoStart(); else resoStop();
+}
+
+$('reso-enabled')?.addEventListener('change', (e) => setResoEnabled(e.target.checked));
+$('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?.checked));
+// 換共用麥克風 → 存起來,並重啟正在跑的服務(共鳴 + STT)讓它們改吃新麥
+$('mic-device')?.addEventListener('change', async () => {
+  await persistMic();
+  if ($('reso-enabled')?.checked) { resoStop(); resoStart(); }
+  if (_sttTier) { const t = _sttTier; stopStt(); startStt(t); }
 });
 // AudioContext 可能因自動播放政策卡在 suspended,任一次點擊就嘗試恢復
 document.addEventListener('click', () => { if (_resoCtx && _resoCtx.state === 'suspended') _resoCtx.resume().catch(() => {}); });
+
+// ============== 🧠 AI 聽得到你(本地 whisper STT,WebGPU)==============
+// 後台開「聽得到主播」後,這台用 GPU 本地辨識麥克風,每 ~15s 轉一段 → 只送短文字當脈絡上雲。
+// 重活全在桌面端(邊緣),雲端不爆;聲音本機處理,不傳音檔、不存逐字稿。
+// transformers.js 從 jsdelivr 載、模型從 HuggingFace 下載(首次)→ CSP 已放行這兩個來源。
+const STT_MODELS = { low: 'Xenova/whisper-tiny', medium: 'Xenova/whisper-base', high: 'Xenova/whisper-small' };
+const STT_MIN_SAMPLES = 6_400;     // < 0.4s 的零碎聲不轉
+// VAD(語音活動偵測):偵測到說話才累積,靜下來一段才送辨識 → 省 GPU、句子不被硬切
+const VAD_ON_RMS = 0.015;          // 音量超過這個 = 開始說話
+const VAD_OFF_RMS = 0.008;         // 低於這個算靜音(留遲滯,避免抖動)
+const VAD_HANG_MS = 700;           // 連續靜音這麼久 = 一句講完 → 送辨識
+const VAD_MAX_MS = 20_000;         // 一句最長 20s(連續講太久也先送一段)
+const VAD_PREROLL = 3;             // 開口前保留幾個音框(~0.8s)避免吃掉第一個字
+
+let _sttTier = null;               // 目前載入的模型等級(null = 未啟用)
+let _sttTranscriber = null;
+let _sttStream = null, _sttCtx = null, _sttProc = null, _sttSilent = null;
+let _sttChunks = [], _sttBusy = false, _sttStarting = false;
+let _sttSpeaking = false, _sttSilentMs = 0, _sttPre = [];   // VAD 狀態
+let _sttLocalOn = true;   // 桌面端開關(跟後台 AI 感知 AND);預設開,沿用既有行為
+
+function setSttHint(msg) { const h = $('stt-hint'); if (h) h.textContent = msg; }
+
+async function startStt(tier) {
+  if (_sttStarting || _sttTier) return;
+  _sttStarting = true;
+  const model = STT_MODELS[tier] || STT_MODELS.medium;
+  try {
+    setSttHint('載入語音模型中…(首次會下載,請稍候)');
+    appendLog({ level: 'info', msg: `STT:載入函式庫 + 模型(${tier}/${model})…` });
+    // /+esm = jsdelivr 打包好的瀏覽器版 ESM(沒這個尾段會拿到無法載入的原始碼)
+    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/+esm');
+    env.allowLocalModels = false;                 // 只從 HF 抓,不找本機路徑
+    // 先試 WebGPU(吃 GPU),失敗(無 WebGPU)再退回 wasm(CPU)
+    try {
+      // fp32:5080 記憶體夠,fp32 數值最穩(fp16 在部分 GPU 會算出 NaN → 卡住/亂碼)
+      _sttTranscriber = await pipeline('automatic-speech-recognition', model, { device: 'webgpu', dtype: 'fp32' });
+    } catch (e) {
+      appendLog({ level: 'warn', msg: `STT:WebGPU 不可用,改用 CPU(${e.message})` });
+      _sttTranscriber = await pipeline('automatic-speech-recognition', model, { device: 'wasm' });
+    }
+
+    // 抓麥(跟歌聲共鳴各開各的;裝置用共用的 #mic-device)
+    const deviceId = $('mic-device')?.value || '';
+    _sttStream = await navigator.mediaDevices.getUserMedia({ audio: {
+      deviceId: deviceId ? { exact: deviceId } : undefined,
+      echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+
+    appendLog({ level: 'info', msg: 'STT:模型就緒 ✓,開麥中…' });
+    // whisper 要 16kHz 單聲道 → 直接開 16k 的 AudioContext,瀏覽器幫忙重取樣
+    _sttCtx = new AudioContext({ sampleRate: 16_000 });
+    if (_sttCtx.state === 'suspended') await _sttCtx.resume().catch(() => {});
+    appendLog({ level: 'info', msg: `STT:AudioContext sr=${_sttCtx.sampleRate} state=${_sttCtx.state}` });
+    const src = _sttCtx.createMediaStreamSource(_sttStream);
+    _sttProc = _sttCtx.createScriptProcessor(4096, 1, 1);
+    _sttSilent = _sttCtx.createGain(); _sttSilent.gain.value = 0;   // 靜音匯流排,避免麥回授到喇叭
+    src.connect(_sttProc); _sttProc.connect(_sttSilent); _sttSilent.connect(_sttCtx.destination);
+    const sr = _sttCtx.sampleRate;
+    _sttProc.onaudioprocess = (e) => {
+      if (!_sttTier) return;
+      const frame = new Float32Array(e.inputBuffer.getChannelData(0));   // 複製一份(原 buffer 會被重用)
+      const frameMs = (frame.length / sr) * 1000;
+      let sq = 0; for (let i = 0; i < frame.length; i++) sq += frame[i] * frame[i];
+      const rms = Math.sqrt(sq / frame.length);
+
+      if (!_sttSpeaking) {
+        // 還沒開口:滾動保留少量 pre-roll;音量一過門檻就進入「說話中」
+        _sttPre.push(frame); if (_sttPre.length > VAD_PREROLL) _sttPre.shift();
+        if (rms > VAD_ON_RMS) {
+          _sttSpeaking = true; _sttSilentMs = 0;
+          _sttChunks = _sttPre.slice(); _sttPre = [];      // 把開口前那幾框接上,第一個字不被吃掉
+          setSttHint('🎙️ 聽你說話中…');
+        }
+        return;
+      }
+      // 說話中:持續累積;靜音累計到 HANG 或講太久 → 收尾送辨識
+      _sttChunks.push(frame);
+      _sttSilentMs = rms < VAD_OFF_RMS ? _sttSilentMs + frameMs : 0;
+      const durMs = _sttChunks.reduce((n, a) => n + a.length, 0) / sr * 1000;
+      if (_sttSilentMs >= VAD_HANG_MS || durMs >= VAD_MAX_MS) {
+        _sttSpeaking = false; _sttSilentMs = 0;
+        flushStt();                                         // 非同步辨識這一句
+      }
+    };
+
+    _sttTier = tier;
+    _sttStarting = false;
+    setSttHint('✓ AI 聽得到你了 — 偵測到說話才辨識(本地 GPU)');
+    appendLog({ level: 'info', msg: `STT:已啟用(${tier} / ${model},語音偵測模式)` });
+  } catch (e) {
+    _sttStarting = false;
+    stopStt();
+    setSttHint('⚠ 語音辨識啟動失敗:' + (e.message || e));
+    appendLog({ level: 'err', msg: `STT:啟動失敗 ${e.message || e}` });
+  }
+}
+
+async function flushStt() {
+  if (_sttBusy || !_sttTranscriber || !_sttChunks.length) return;
+  _sttBusy = true;
+  try {
+    const total = _sttChunks.reduce((n, a) => n + a.length, 0);
+    const audio = new Float32Array(total);
+    let off = 0; for (const a of _sttChunks) { audio.set(a, off); off += a.length; }
+    _sttChunks = [];
+    if (total < STT_MIN_SAMPLES) return;                        // 太短的零碎聲不轉(VAD 已先擋掉靜音)
+    const res = await _sttTranscriber(audio, { language: 'zh', task: 'transcribe' });
+    const raw = String(res?.text || '').trim();
+    // ① 去掉 whisper 的非語音註記:(咳)(笑)（音樂）[掌聲]【字幕】… 括號內容
+    const text = raw.replace(/[（(【\[][^）)】\]]*[）)】\]]/g, '')
+                    .replace(/[\s,，、。.!?！?~…]+$/u, '').trim();
+    // ② 幻覺/雜訊過濾:剩太短、沒有任何中英數(純標點)、或 whisper 固定幻覺句 → 丟
+    const HALLUC = /^(字幕|請不吝|謝謝(大家)?(觀看|收看)|不吝點贊|請訂閱|下次再見|MING|by )/;
+    const hasWord = /[一-鿿a-zA-Z0-9]/.test(text);
+    if (text.length > 1 && hasWord && !HALLUC.test(text)) {
+      window.characast.sendStreamerSpeech(text);
+      appendLog({ level: 'info', msg: `STT 🎙️ 辨識:「${text}」→ 已上雲` });
+      setSttHint(`✓ 聽到了:「${text.slice(0, 24)}${text.length > 24 ? '…' : ''}」`);
+    } else if (raw) {
+      appendLog({ level: 'info', msg: `STT:略過非語音/雜訊「${raw.slice(0, 16)}」` });
+    }
+  } catch (e) {
+    appendLog({ level: 'warn', msg: `STT:辨識失敗(略過此段)${e.message || e}` });
+  } finally { _sttBusy = false; }
+}
+
+function stopStt() {
+  _sttTier = null;
+  try { _sttProc?.disconnect(); } catch {}
+  try { _sttSilent?.disconnect(); } catch {}
+  try { _sttStream?.getTracks().forEach((t) => t.stop()); } catch {}
+  try { _sttCtx?.close(); } catch {}
+  _sttProc = _sttSilent = _sttStream = _sttCtx = null;
+  _sttChunks = []; _sttBusy = false;
+  _sttSpeaking = false; _sttSilentMs = 0; _sttPre = [];
+}
+
+// 跟雲端同步 AI 感知設定:開了就上工、關了就停、換等級就重載模型
+let _lastSyncSig = '';
+async function syncPerception() {
+  let cfg;
+  try { cfg = await window.characast.getPerceptionConfig(); } catch { cfg = null; }
+  if (!cfg) return;                                     // 雲端還沒連上 → 下次再試
+  const tier = cfg.perfTier || 'medium';
+
+  // 診斷:雲端回的設定變了就記一行 → 看後台改的有沒有真的傳到這台、是哪個帳號
+  const sig = `${cfg.perfTier}|${cfg.sttEnabled}|${cfg.visionEnabled}|${cfg.game || ''}`;
+  if (sig !== _lastSyncSig) {
+    _lastSyncSig = sig;
+    appendLog({ level: 'info', msg: `感知設定(雲端回):等級=${cfg.perfTier} 聽=${cfg.sttEnabled} 看=${cfg.visionEnabled} 遊戲=${cfg.game || '(無)'}` });
+  }
+
+  // 當前遊戲名(刀2)→ Vision 校準用;變了就更新校準 UI
+  const g = cfg.game || '';
+  if (g !== _currentGame) { _currentGame = g; updateCalUI(); }
+
+  // --- STT(耳朵):桌面開關 AND 後台 AI 感知 ---
+  if (_sttLocalOn && cfg.sttEnabled) {
+    if (!_sttTier) startStt(tier);
+    else if (_sttTier !== tier) { stopStt(); startStt(tier); }   // 後台改效能等級 → 重載
+  } else {
+    if (_sttTier || _sttStarting) stopStt();
+    if (!_sttLocalOn) setSttHint('已關閉 — 打開上面的開關讓 AI 聽你說話');
+    else if (!cfg.sttEnabled) setSttHint('桌面端已開,但後台「🧠 AI 感知」尚未開「聽得到主播」');
+  }
+
+  // --- Vision(眼睛):桌面開關 AND 後台 AI 感知 ---
+  if (_visLocalOn && cfg.visionEnabled) {
+    if (!_visTier) startVision(tier);
+    else if (_visTier !== tier) { stopVision(); startVision(tier); }
+  } else {
+    if (_visTier || _visStarting) stopVision();
+    if (!_visLocalOn) setVisHint('已關閉 — 打開上面的開關讓 AI 看畫面');
+    else if (!cfg.visionEnabled) setVisHint('桌面端已開,但後台「🧠 AI 感知」尚未開「看得到畫面」');
+  }
+}
+
+// 讓 AI 聽你說話:開關單一入口(分頁勾選 + 快速開關都走這)
+function setSttLocalOn(on) {
+  _sttLocalOn = on;
+  if ($('stt-enabled')) $('stt-enabled').checked = on;
+  paintQuick('qt-stt', '🧠 聽你說話', on);
+  window.characast.setSettings({ stt: { enabled: on } });
+  if (!on && (_sttTier || _sttStarting)) { stopStt(); setSttHint('已關閉 — 打開開關讓 AI 聽你說話'); }
+  else syncPerception();
+}
+$('stt-enabled')?.addEventListener('change', (e) => setSttLocalOn(e.target.checked));
+$('qt-stt')?.addEventListener('click', () => setSttLocalOn(!_sttLocalOn));
+
+// ============== 🖼️ 讓 AI 看畫面(Layer 0 差異閘 + Layer 1 本地 CLIP 場景分類)==============
+// Layer 0:截 OBS 目前場景縮圖 → 16x16 灰階 average-hash,沒變就跳過(免費、不跑模型)。
+// Layer 1:畫面變了才跑 CLIP 零樣本分類(WebGPU 本地)→ 得場景 → 只送短描述上雲。
+// 重活全在桌面端;雲端只收「場景:團戰中」這種短文字。未來校準/蒸餾會更省(見藍圖)。
+// 零樣本 CLIP 只擅長「粗場景類型」(遊戲/真人/唱歌/桌面),分不出遊戲內細時刻(團戰/結算)——
+// 那留給未來「每款遊戲校準」(Layer 2)。遊戲是哪款已由刀2(streamContext.game)補,這裡只認類型。
+const VISION_LABELS = [
+  { en: 'a screenshot of a video game being played', zh: '玩遊戲中' },
+  { en: 'a webcam of a person talking to the camera, just chatting', zh: '聊天/講話' },
+  { en: 'a karaoke or music video screen with song lyrics', zh: '唱歌/音樂' },
+  { en: 'a be right back, pause, intermission or starting soon screen', zh: '待機(BRB)' },
+  { en: 'a computer desktop, web browser or a video player', zh: '桌面/看影片' },
+  { en: 'a game loading or matchmaking waiting screen', zh: '載入/等待' },
+];
+const VISION_TICK_MS = { low: 30_000, medium: 12_000, high: 6_000 };  // 多久檢查一次畫面
+const VISION_DIFF = 8;          // average-hash 漢明距離 > 此值 = 畫面變了(才跑 CLIP)
+const VISION_MIN_SCORE = 0.30;  // CLIP 信心低於此 → 不送(粗類型通常 60%+,門檻拉高擋亂猜)
+const VISION_GAME_LABEL = '玩遊戲中';  // 粗類型是這個 + 有校準檔 → 才細分(Layer 2)
+// Layer 2 校準門檻拉高:few-shot CLIP 抓「長相穩定的大事件畫面」可以,抓「行為」(團戰/走位)
+// 因環境變數太多會亂猜 → 門檻高一點,不夠像就乖乖回「玩遊戲中」,寧可少報不要報錯。
+const VIS_MATCH_MIN = 0.86;
+
+let _visTier = null, _visClassifier = null, _visStarting = false;
+let _visTimer = null, _visBusy = false, _visLastHash = null, _visLastLabel = '', _visCanvas = null;
+let _visLocalOn = true;
+// Layer 2(每款遊戲校準,少樣本 CLIP 原型,本地存)
+let _visEmbedder = null, _visEmbedderLoading = null, _visProfiles = {}, _currentGame = '';
+// 戰鬥偵測:只盯 kill-feed 區域的變化頻率(短時間爆量 = 團戰),不看整張畫面 → 對地圖免疫
+const KF_TICK_MS = 2500;        // kill-feed 區掃描頻率
+const KF_DIFF = 6;              // 區域 aHash 漢明距離 > 此 = 有事件(那塊變了)
+const KF_WINDOW_MS = 14_000;    // 事件統計窗
+const KF_HOT = 3;               // 窗內事件數 >= 此 = 團戰
+const VISION_COMBAT_LABEL = '團戰/戰鬥中';
+let _visHud = {}, _kfTimer = null, _kfLastHash = null, _kfEvents = [], _kfBusy = false, _kfDrag = null;
+
+function setVisHint(msg) { const h = $('vision-hint'); if (h) h.textContent = msg; }
+
+async function startVision(tier) {
+  if (_visStarting || _visTier) return;
+  _visStarting = true;
+  try {
+    setVisHint('載入畫面模型中…(首次會下載)');
+    appendLog({ level: 'info', msg: `Vision:載入 CLIP(${tier})…` });
+    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/+esm');
+    env.allowLocalModels = false;
+    try {
+      _visClassifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', { device: 'webgpu', dtype: 'fp32' });
+    } catch (e) {
+      appendLog({ level: 'warn', msg: `Vision:WebGPU 不可用,改用 CPU(${e.message})` });
+      _visClassifier = await pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32', { device: 'wasm' });
+    }
+    _visTier = tier; _visStarting = false; _visLastHash = null; _visLastLabel = '';
+    _visTimer = setInterval(visTick, VISION_TICK_MS[tier] || VISION_TICK_MS.medium);
+    _kfLastHash = null; _kfEvents = [];
+    _kfTimer = setInterval(kfTick, KF_TICK_MS);   // 戰鬥偵測(有框 kill feed 區才會動)
+    setVisHint('✓ AI 看得到畫面了 — 畫面有變才判斷(本地 GPU)');
+    appendLog({ level: 'info', msg: `Vision:已啟用(${tier})` });
+  } catch (e) {
+    _visStarting = false; stopVision();
+    setVisHint('⚠ 看畫面啟動失敗:' + (e.message || e));
+    appendLog({ level: 'err', msg: `Vision:啟動失敗 ${e.message || e}` });
+  }
+}
+
+function _loadImage(src) { return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; }); }
+// 把畫面縮到 16x16 灰階 → average-hash(256-bit 字串),拿來比「畫面有沒有變」
+async function visHash(dataUrl) {
+  const img = await _loadImage(dataUrl);
+  const c = _visCanvas || (_visCanvas = document.createElement('canvas'));
+  c.width = 16; c.height = 16;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0, 16, 16);
+  const d = ctx.getImageData(0, 0, 16, 16).data;
+  const g = new Float32Array(256); let sum = 0;
+  for (let i = 0; i < 256; i++) { const v = d[i*4]*0.299 + d[i*4+1]*0.587 + d[i*4+2]*0.114; g[i] = v; sum += v; }
+  const avg = sum / 256;
+  let bits = ''; for (let i = 0; i < 256; i++) bits += g[i] >= avg ? '1' : '0';
+  return bits;
+}
+function _hamming(a, b) { if (!a || !b || a.length !== b.length) return 999; let n = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) n++; return n; }
+
+async function visTick() {
+  if (_visBusy || !_visClassifier) return;
+  _visBusy = true;
+  try {
+    const shot = await window.characast.getObsScreenshot({ width: 640, quality: 50 });
+    if (!shot) { setVisHint('等 OBS 連線 / 有場景才看得到畫面'); return; }
+    const h = await visHash(shot);
+    if (_visLastHash && _hamming(h, _visLastHash) <= VISION_DIFF) return;   // Layer 0:畫面沒變 → 跳過
+    _visLastHash = h;
+    const out = await _visClassifier(shot, VISION_LABELS.map((l) => l.en));  // Layer 1:CLIP 零樣本(粗類型)
+    const top = Array.isArray(out) ? out[0] : null;
+    if (!top || top.score < VISION_MIN_SCORE) return;
+    let zh = (VISION_LABELS.find((l) => l.en === top.label) || {}).zh || top.label;
+    const g2 = effectiveGame();
+    // 戰鬥偵測優先(最準、對地圖免疫):遊戲中 + kill feed 區短時間爆量 → 團戰
+    if (zh === VISION_GAME_LABEL && combatHot()) {
+      zh = VISION_COMBAT_LABEL;
+    } else if (zh === VISION_GAME_LABEL && g2 && _visProfiles[g2]) {
+      // Layer 2:校準原型細分(大事件畫面,如勝利/結算)
+      try {
+        const m = matchScene(await embedImage(shot), g2);
+        if (m) zh = m.label;
+      } catch { /* 細分失敗就維持粗類型 */ }
+    }
+    if (zh !== _visLastLabel) {                              // 場景真的變了才送(省)
+      _visLastLabel = zh;
+      window.characast.sendStreamerVision('場景:' + zh);
+      appendLog({ level: 'info', msg: `Vision 🖼️ 場景:「${zh}」(${(top.score * 100) | 0}%)→ 已上雲` });
+      setVisHint(`✓ 看到:${zh}`);
+    }
+  } catch (e) {
+    appendLog({ level: 'warn', msg: `Vision:判斷失敗(略過)${e.message || e}` });
+  } finally { _visBusy = false; }
+}
+
+function stopVision() {
+  _visTier = null;
+  if (_visTimer) { clearInterval(_visTimer); _visTimer = null; }
+  if (_kfTimer) { clearInterval(_kfTimer); _kfTimer = null; }
+  _visClassifier = null; _visBusy = false; _visLastHash = null; _visLastLabel = '';
+  _kfLastHash = null; _kfEvents = [];
+}
+
+// 讓 AI 看畫面:開關單一入口(分頁勾選 + 快速開關都走這)
+function setVisLocalOn(on) {
+  _visLocalOn = on;
+  if ($('vision-enabled')) $('vision-enabled').checked = on;
+  paintQuick('qt-vision', '🖼️ 看畫面', on);
+  window.characast.setSettings({ vision: { enabled: on } });
+  if (!on && (_visTier || _visStarting)) { stopVision(); setVisHint('已關閉 — 打開開關讓 AI 看畫面'); }
+  else syncPerception();
+}
+$('vision-enabled')?.addEventListener('change', (e) => setVisLocalOn(e.target.checked));
+$('qt-vision')?.addEventListener('click', () => setVisLocalOn(!_visLocalOn));
+
+// ===== Layer 2:每款遊戲校準(少樣本 CLIP 原型,本地存)=====
+// 共用同一顆 CLIP(檔案已快取),用 image-feature-extraction 拿影像向量;懶載。
+async function getVisEmbedder() {
+  if (_visEmbedder) return _visEmbedder;
+  if (_visEmbedderLoading) return _visEmbedderLoading;
+  _visEmbedderLoading = (async () => {
+    const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/+esm');
+    env.allowLocalModels = false;
+    try { _visEmbedder = await pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32', { device: 'webgpu', dtype: 'fp32' }); }
+    catch { _visEmbedder = await pipeline('image-feature-extraction', 'Xenova/clip-vit-base-patch32', { device: 'wasm' }); }
+    return _visEmbedder;
+  })();
+  return _visEmbedderLoading;
+}
+function _l2norm(v) { let s = 0; for (const x of v) s += x * x; s = Math.sqrt(s) || 1; return v.map((x) => x / s); }
+function _cosine(a, b) { if (!a || !b || a.length !== b.length) return -1; let d = 0; for (let i = 0; i < a.length; i++) d += a[i] * b[i]; return d; }
+async function embedImage(dataUrl) {
+  const emb = await getVisEmbedder();
+  const out = await emb(dataUrl);
+  return _l2norm(Array.from(out.data || []));   // 存正規化向量 → cosine = 點積
+}
+function matchScene(vec, game) {
+  const prof = _visProfiles[game]; if (!prof) return null;
+  let best = null, bestSim = -1;
+  for (const [label, samples] of Object.entries(prof)) {
+    for (const s of samples) { const sim = _cosine(vec, s); if (sim > bestSim) { bestSim = sim; best = label; } }
+  }
+  return (best && bestSim >= VIS_MATCH_MIN) ? { label: best, sim: bestSim } : null;
+}
+
+function setCalHint(msg) { const h = $('cal-hint'); if (h) h.textContent = msg; }
+// 有效遊戲名:直播中用偵測到的,否則用手動輸入的(離線校準用)
+function effectiveGame() { return (_currentGame || ($('cal-game-input')?.value || '').trim()).trim(); }
+// 預設場景改「大事件 / 長相穩定的畫面」導向(CLIP 校得起來且最值得 AI 反應);
+// 行為級(團戰/走位)環境變數太多,few-shot 抓不準 → 留給未來蒸餾 CNN,不放預設。
+const CAL_PRESETS = ['勝利畫面', '失敗/結算', '死亡畫面', '升級', '選角/大廳', '載入畫面'];
+const CAL_CUSTOM = '__custom__';
+// 目前要擷取的場景標籤:選單值;選「自訂」時用自訂框的字
+function calLabel() {
+  const sel = $('cal-label'); if (!sel) return '';
+  if (sel.value === CAL_CUSTOM) return ($('cal-label-custom')?.value || '').trim();
+  return sel.value || '';
+}
+// 重建場景下拉:預設場景 ∪ 這款遊戲已建的標籤 + 自訂(保留目前選擇)
+function refreshCalLabels() {
+  const sel = $('cal-label'); if (!sel) return;
+  const prev = sel.value;
+  const existing = Object.keys(_visProfiles[effectiveGame()] || {});
+  const opts = [...new Set([...CAL_PRESETS, ...existing])];
+  sel.innerHTML = '<option value="">選場景…</option>'
+    + opts.map((o) => `<option value="${escAttr(o)}">${escTxt(o)}</option>`).join('')
+    + `<option value="${CAL_CUSTOM}">＋ 自訂場景…</option>`;
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+}
+function updateCalUI() {
+  // 直播中偵測到遊戲 → 自動帶入輸入框(使用者還沒手動打才帶,免得蓋掉他打的)
+  const inp = $('cal-game-input');
+  if (inp && _currentGame && !inp.value.trim()) inp.value = _currentGame;
+  const hint = $('cal-game-hint');
+  if (hint) hint.textContent = _currentGame
+    ? `直播中偵測到:${_currentGame}(已帶入)`
+    : '離線中 — 自己填遊戲名即可;直播時要跟 Twitch 分類一致才會自動套用';
+  renderCalList();
+}
+function renderCalList() {
+  refreshCalLabels();   // 場景下拉跟著已建標籤更新
+  const box = $('cal-list'); if (!box) return;
+  box.innerHTML = '';
+  const game = effectiveGame();
+  if (!game) { box.innerHTML = '<div class="hint">先填上面的遊戲名,才能存校準樣本</div>'; return; }
+  const prof = _visProfiles[game] || {};
+  const labels = Object.keys(prof);
+  if (!labels.length) { box.innerHTML = '<div class="hint">「' + game + '」還沒有校準樣本</div>'; return; }
+  for (const label of labels) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;justify-content:space-between';
+    const span = document.createElement('span'); span.textContent = `${label} ×${prof[label].length}`;
+    const del = document.createElement('button'); del.className = 'ghost'; del.type = 'button'; del.textContent = '刪除';
+    del.addEventListener('click', async () => {
+      delete _visProfiles[game][label];
+      if (!Object.keys(_visProfiles[game]).length) delete _visProfiles[game];
+      await window.characast.setSettings({ visionProfiles: _visProfiles });
+      renderCalList();
+    });
+    row.appendChild(span); row.appendChild(del); box.appendChild(row);
+  }
+}
+async function calCapture() {
+  const game = effectiveGame();
+  const label = calLabel();
+  if (!game) { setCalHint('先填遊戲名稱(離線可手動輸入)'); return; }
+  if (!label) { setCalHint('先從選單選一個場景,或選「自訂」打名字'); return; }
+  setCalHint('擷取中…(首次要載入向量模型)');
+  try {
+    const shot = await window.characast.getObsScreenshot({ width: 640, quality: 60 });
+    if (!shot) { setCalHint('截不到畫面 — 確認 OBS 已連線'); return; }
+    if (!_visProfiles[game]) _visProfiles[game] = {};
+    if (!_visProfiles[game][label]) _visProfiles[game][label] = [];
+    if (_visProfiles[game][label].length >= 8) { setCalHint(`「${label}」已達 8 張上限(夠用了)`); return; }
+    _visProfiles[game][label].push(await embedImage(shot));
+    await window.characast.setSettings({ visionProfiles: _visProfiles });
+    renderCalList();
+    // 擷取後維持選在剛擷取的標籤 → 可連續按「擷取」存同一種,不用重選/刪字;收起自訂框
+    const sel = $('cal-label'); if (sel) sel.value = label;
+    const cst = $('cal-label-custom'); if (cst) { cst.style.display = 'none'; cst.value = ''; }
+    setCalHint(`✓ 已存「${label}」第 ${_visProfiles[game][label].length} 張 — 可直接再按「擷取」存同一種,多角度更準`);
+  } catch (e) { setCalHint('擷取失敗:' + (e.message || e)); }
+}
+$('cal-capture')?.addEventListener('click', calCapture);
+$('cal-game-input')?.addEventListener('input', renderCalList);   // 換遊戲名 → 列表 + 場景下拉跟著換
+// 選「＋ 自訂場景…」才顯示自訂輸入框
+$('cal-label')?.addEventListener('change', () => {
+  const cst = $('cal-label-custom'); if (!cst) return;
+  if ($('cal-label').value === CAL_CUSTOM) { cst.style.display = ''; cst.focus(); }
+  else cst.style.display = 'none';
+});
+
+// ===== ⚔️ 戰鬥偵測:盯 kill feed 區域的變化頻率（短時間爆量 = 團戰）=====
+async function regionHash(dataUrl, r) {
+  const img = await _loadImage(dataUrl);
+  const sw = r.w * img.width, sh = r.h * img.height;
+  if (sw < 4 || sh < 4) return null;
+  const c = _visCanvas || (_visCanvas = document.createElement('canvas'));
+  c.width = 16; c.height = 16;
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, 16, 16);
+  ctx.drawImage(img, r.x * img.width, r.y * img.height, sw, sh, 0, 0, 16, 16);   // 只畫 kill feed 那塊
+  const d = ctx.getImageData(0, 0, 16, 16).data;
+  const g = new Float32Array(256); let sum = 0;
+  for (let i = 0; i < 256; i++) { const v = d[i*4]*0.299 + d[i*4+1]*0.587 + d[i*4+2]*0.114; g[i] = v; sum += v; }
+  const avg = sum / 256;
+  let bits = ''; for (let i = 0; i < 256; i++) bits += g[i] >= avg ? '1' : '0';
+  return bits;
+}
+async function kfTick() {
+  if (_kfBusy) return;
+  const kf = _visHud[effectiveGame()]?.kf;
+  if (!kf || !(kf.w > 0 && kf.h > 0)) return;     // 沒框戰鬥區 → 不偵測
+  _kfBusy = true;
+  try {
+    const shot = await window.characast.getObsScreenshot({ width: 960, quality: 50 });
+    if (!shot) return;
+    const h = await regionHash(shot, kf);
+    if (!h) return;
+    if (_kfLastHash && _hamming(h, _kfLastHash) > KF_DIFF) _kfEvents.push(Date.now());   // 那塊變了 = 一個事件
+    _kfLastHash = h;
+  } catch { /* 略過此次 */ } finally { _kfBusy = false; }
+}
+function combatHot() {
+  const now = Date.now();
+  _kfEvents = _kfEvents.filter((t) => t >= now - KF_WINDOW_MS);
+  return _kfEvents.length >= KF_HOT;
+}
+
+// ----- kill feed 區域校準（在畫面上拖一個框）-----
+function setKfHint(m) { const h = $('kf-hint'); if (h) h.textContent = m; }
+function kfShowSavedBox() {
+  const kf = _visHud[effectiveGame()]?.kf;
+  const box = $('kf-box'); if (!box) return;
+  if (kf && kf.w > 0 && kf.h > 0) {
+    box.style.left = (kf.x * 100) + '%'; box.style.top = (kf.y * 100) + '%';
+    box.style.width = (kf.w * 100) + '%'; box.style.height = (kf.h * 100) + '%';
+    box.style.display = 'block';
+  } else box.style.display = 'none';
+}
+$('kf-pick-btn')?.addEventListener('click', async () => {
+  const game = effectiveGame();
+  if (!game) { setKfHint('先在上面填遊戲名'); return; }
+  setKfHint('擷取畫面中…');
+  const shot = await window.characast.getObsScreenshot({ width: 960, quality: 60 });
+  if (!shot) { setKfHint('截不到畫面 — 確認 OBS 已連線'); return; }
+  const img = $('kf-img'); if (img) img.src = shot;
+  const pick = $('kf-pick'); if (pick) pick.style.display = 'block';
+  kfShowSavedBox();
+  setKfHint('在畫面上拖一個框，框住 kill feed（擊殺列表）那塊');
+});
+$('kf-pick')?.addEventListener('mousedown', (e) => {
+  const r = $('kf-pick').getBoundingClientRect();
+  _kfDrag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r };
+});
+window.addEventListener('mousemove', (e) => {
+  if (!_kfDrag) return;
+  const { x0, y0, r } = _kfDrag;
+  const x1 = Math.max(0, Math.min(r.width, e.clientX - r.left));
+  const y1 = Math.max(0, Math.min(r.height, e.clientY - r.top));
+  const box = $('kf-box'); if (!box) return;
+  box.style.left = Math.min(x0, x1) + 'px'; box.style.top = Math.min(y0, y1) + 'px';
+  box.style.width = Math.abs(x1 - x0) + 'px'; box.style.height = Math.abs(y1 - y0) + 'px';
+  box.style.display = 'block';
+});
+window.addEventListener('mouseup', async (e) => {
+  if (!_kfDrag) return;
+  const { x0, y0, r } = _kfDrag; _kfDrag = null;
+  const x1 = Math.max(0, Math.min(r.width, e.clientX - r.left));
+  const y1 = Math.max(0, Math.min(r.height, e.clientY - r.top));
+  const left = Math.min(x0, x1), top = Math.min(y0, y1);
+  const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
+  if (w < 8 || h < 8) { setKfHint('框太小了，重拖一次'); return; }
+  const game = effectiveGame();
+  if (!game) { setKfHint('先填遊戲名'); return; }
+  const kf = { x: left / r.width, y: top / r.height, w: w / r.width, h: h / r.height };
+  if (!_visHud[game]) _visHud[game] = {};
+  _visHud[game].kf = kf;
+  _kfLastHash = null; _kfEvents = [];
+  await window.characast.setSettings({ visionHud: _visHud });
+  kfShowSavedBox();
+  setKfHint(`✓ 已框戰鬥區（${Math.round(kf.w*100)}%×${Math.round(kf.h*100)}%）— 偵測到團戰會自動報`);
+});
+
+// 雲端認證成功的瞬間同步一次;之後每 60s 再對一次(後台改設定能跟上)
+let _sttLastAuthed = false;
+window.characast.onStatus((s) => {
+  const authed = Boolean(s?.cloud?.authed);
+  if (authed && !_sttLastAuthed) setTimeout(syncPerception, 1500);
+  _sttLastAuthed = authed;
+});
+setInterval(syncPerception, 60_000);
 
 // init
 (async () => {
   await applyView();
   const recent = await window.characast.getRecentLogs();
   for (const e of recent) appendLog(e);
+  setTimeout(syncPerception, 4000);   // 開機若已配對,稍後主動對一次設定
 })();

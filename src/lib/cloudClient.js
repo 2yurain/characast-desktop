@@ -80,6 +80,20 @@ class CloudClient extends EventEmitter {
     });
   }
 
+  /** 跟雲端要 AI 感知設定(STT/Vision 開關 + perf_tier)。回 Promise<cfg> 或 reject。 */
+  requestPerceptionConfig(timeoutMs = 8000) {
+    return new Promise((resolve, reject) => {
+      if (!this.isConnected()) return reject(new Error('雲端未連線'));
+      const onMsg = (msg) => {
+        if (msg && msg.type === 'perception.config') { cleanup(); resolve(msg); }
+      };
+      const cleanup = () => { clearTimeout(timer); this.off('message', onMsg); };
+      const timer = setTimeout(() => { cleanup(); reject(new Error('雲端回感知設定逾時')); }, timeoutMs);
+      this.on('message', onMsg);
+      this.send({ type: 'perception.config.request' });
+    });
+  }
+
   getStatus() {
     return {
       url: this.url,

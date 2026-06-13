@@ -29,6 +29,13 @@ contextBridge.exposeInMainWorld('characast', {
   ttsAmplitude: (v) => ipcRenderer.send('tts:amplitude', v),
   // 歌聲共鳴 → main → cloud → OBS overlay(高頻 fire-and-forget)
   resonanceData: (v) => ipcRenderer.send('resonance:data', v),
+  // AI 感知:跟雲端要 STT/Vision 設定(開關 + 效能等級)
+  getPerceptionConfig: () => ipcRenderer.invoke('perception:get'),
+  // 本地 whisper 辨識出的主播語音 → main → cloud(只送短文字當脈絡)
+  sendStreamerSpeech: (text) => ipcRenderer.send('streamer:speech', text),
+  // Vision:跟 main 要 OBS 目前畫面縮圖(base64);CLIP 看完的短描述 → main → cloud
+  getObsScreenshot: (opts) => ipcRenderer.invoke('obs:screenshot', opts),
+  sendStreamerVision: (text) => ipcRenderer.send('streamer:vision', text),
   onLog: (cb) => {
     const handler = (_e, entry) => cb(entry);
     ipcRenderer.on('log', handler);

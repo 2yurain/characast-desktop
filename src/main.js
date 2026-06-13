@@ -67,7 +67,48 @@ ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('settings:get', () => settings.all());
 
 // renderer 只允許改這些 key(白名單,擋掉亂塞鍵 / 原型污染)
-const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance']);
+const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance', 'mic', 'stt', 'vision', 'visionProfiles', 'visionHud']);
+
+// Vision 戰鬥偵測:每款遊戲的 kill-feed 區域(畫面比例 0~1)。{ [game]: { kf: {x,y,w,h} } }
+function sanitizeVisionHud(v) {
+  const out = {};
+  if (!v || typeof v !== 'object') return out;
+  const f = (n) => { const x = Number(n); return Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0; };
+  let games = 0;
+  for (const [game, cfg] of Object.entries(v)) {
+    if (game === '__proto__' || game === 'constructor') continue;
+    if (++games > 30 || !cfg || typeof cfg !== 'object' || !cfg.kf) continue;
+    const k = cfg.kf;
+    out[String(game).slice(0, 80)] = { kf: { x: f(k.x), y: f(k.y), w: f(k.w), h: f(k.h) } };
+  }
+  return out;
+}
+
+// Vision 校準檔:{ [game]: { [label]: [ [floats…], … ] } }。重建乾淨結構 + 上限,擋亂塞/巨型/原型污染。
+function sanitizeVisionProfiles(v) {
+  const out = {};
+  if (!v || typeof v !== 'object') return out;
+  let games = 0;
+  for (const [game, labels] of Object.entries(v)) {
+    if (game === '__proto__' || game === 'constructor') continue;
+    if (++games > 30 || !labels || typeof labels !== 'object') continue;
+    const g = {};
+    let nLabels = 0;
+    for (const [label, samples] of Object.entries(labels)) {
+      if (label === '__proto__' || label === 'constructor') continue;
+      if (++nLabels > 24 || !Array.isArray(samples)) continue;
+      const arr = [];
+      for (const vec of samples) {
+        if (arr.length >= 8 || !Array.isArray(vec)) continue;
+        const clean = vec.slice(0, 1024).map((n) => Number(n)).filter((n) => Number.isFinite(n));
+        if (clean.length) arr.push(clean);
+      }
+      if (arr.length) g[String(label).slice(0, 24)] = arr;
+    }
+    if (Object.keys(g).length) out[String(game).slice(0, 80)] = g;
+  }
+  return out;
+}
 
 ipcMain.handle('settings:set', (_e, patch) => {
   if (patch && typeof patch === 'object') {
@@ -91,8 +132,36 @@ ipcMain.handle('settings:set', (_e, patch) => {
         const src = (v && typeof v === 'object') ? v : {};
         settings.set('resonance', {
           enabled: Boolean(src.enabled),
-          deviceId: String(src.deviceId || '').slice(0, 256),
+          deviceId: String(src.deviceId || '').slice(0, 256),   // 保留:舊版相容
         });
+        continue;
+      }
+      // mic:共用麥克風裝置(共鳴 + STT 共用這支)
+      if (k === 'mic') {
+        const src = (v && typeof v === 'object') ? v : {};
+        settings.set('mic', { deviceId: String(src.deviceId || '').slice(0, 256) });
+        continue;
+      }
+      // stt:本地語音辨識的「桌面端開關」(跟後台 AI 感知是 AND 關係)
+      if (k === 'stt') {
+        const src = (v && typeof v === 'object') ? v : {};
+        settings.set('stt', { enabled: Boolean(src.enabled) });
+        continue;
+      }
+      // vision:本地看畫面的「桌面端開關」(跟後台 AI 感知是 AND 關係)
+      if (k === 'vision') {
+        const src = (v && typeof v === 'object') ? v : {};
+        settings.set('vision', { enabled: Boolean(src.enabled) });
+        continue;
+      }
+      // visionProfiles:Vision Layer 2 每款遊戲的校準向量(本地存)
+      if (k === 'visionProfiles') {
+        settings.set('visionProfiles', sanitizeVisionProfiles(v));
+        continue;
+      }
+      // visionHud:每款遊戲的 kill-feed 區域(戰鬥偵測用)
+      if (k === 'visionHud') {
+        settings.set('visionHud', sanitizeVisionHud(v));
         continue;
       }
       settings.set(k, v);
@@ -123,6 +192,28 @@ ipcMain.on('tts:amplitude', (_e, v) => { vts.setMouth(v); });
 ipcMain.on('resonance:data', (_e, d) => {
   if (!d || !cloud.isConnected()) return;
   cloud.send({ type: 'resonance', energy: Number(d.energy) || 0, freq: Number(d.freq) || 0, centroid: Number(d.centroid) || 0 });
+});
+// AI 感知設定:renderer 跟雲端要 STT/Vision 開關 + 效能等級(連不上回 null,讓 renderer 稍後重試)
+ipcMain.handle('perception:get', async () => {
+  try { return await cloud.requestPerceptionConfig(); }
+  catch { return null; }
+});
+// 本地 whisper 辨識出的主播語音 → 轉給 cloud(只送短文字當脈絡;沒連上就丟棄)
+ipcMain.on('streamer:speech', (_e, text) => {
+  const t = String(text || '').trim();
+  if (!t || !cloud.isConnected()) return;
+  cloud.send({ type: 'streamer.speech', text: t.slice(0, 300) });
+});
+// Vision:renderer 要 OBS 目前畫面縮圖(回 base64 data URL 或 null)
+ipcMain.handle('obs:screenshot', async (_e, opts) => {
+  try { return await obs.getScreenshot(opts || {}); }
+  catch { return null; }
+});
+// Vision:桌面端看圖(CLIP)後的短場景描述 → 轉給 cloud
+ipcMain.on('streamer:vision', (_e, text) => {
+  const t = String(text || '').trim();
+  if (!t || !cloud.isConnected()) return;
+  cloud.send({ type: 'streamer.vision', text: t.slice(0, 200) });
 });
 // 本機測試:直接觸發某情緒對應的表情 hotkey
 ipcMain.handle('vts:test-expression', (_e, emotion) => {

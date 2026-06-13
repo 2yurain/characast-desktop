@@ -116,6 +116,29 @@ class ObsClient extends EventEmitter {
     }
   }
 
+  /**
+   * 截「目前節目場景」一張縮圖(= 觀眾看到的畫面),給 Vision 用。
+   * 回 base64 data URL(image/jpeg)或 null。預設縮到 ~640px、低畫質(夠 CLIP 分類)。
+   */
+  async getScreenshot({ width = 640, quality = 50 } = {}) {
+    if (!this.connected || !this.obs) return null;
+    try {
+      const cur = await this.obs.call('GetCurrentProgramScene');
+      const sourceName = cur.currentProgramSceneName || cur.sceneName;
+      if (!sourceName) return null;
+      const r = await this.obs.call('GetSourceScreenshot', {
+        sourceName,
+        imageFormat: 'jpg',
+        imageWidth: width,
+        imageCompressionQuality: quality,
+      });
+      return r?.imageData || null;   // 已是 data:image/jpeg;base64,…
+    } catch (e) {
+      this.emit('log', { level: 'warn', msg: `obs:GetSourceScreenshot 失敗 ${e.message}` });
+      return null;
+    }
+  }
+
   /** 啟動重播緩存(冪等;已在跑就略過)。需 OBS 設定→輸出→已啟用「重播緩衝」。 */
   async startReplayBuffer() {
     if (!this.connected || !this.obs) return false;
