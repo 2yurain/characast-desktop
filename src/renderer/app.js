@@ -1128,13 +1128,16 @@ async function ensureOcr() {
   if (_ocrWorker) return _ocrWorker;
   if (_ocrLoading) return _ocrLoading;
   _ocrLoading = (async () => {
+    appendLog({ level: 'info', msg: 'Vision OCR:載入 tesseract…(首次會下載語言檔)' });
     const T = await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm');
     const createWorker = T.createWorker || (T.default && T.default.createWorker);
+    if (!createWorker) throw new Error('tesseract.js 沒有 createWorker(CDN 載入格式不符)');
     const worker = await createWorker('eng');
     await worker.setParameters({ tessedit_char_whitelist: '0123456789/:', tessedit_pageseg_mode: '7' });
     _ocrWorker = worker;
+    appendLog({ level: 'info', msg: 'Vision OCR:tesseract 已就緒' });
     return worker;
-  })();
+  })().catch((e) => { _ocrLoading = null; throw e; });
   return _ocrLoading;
 }
 // Otsu:從灰階直方圖找最佳二值門檻(自適應,解決亮背景)
@@ -1191,25 +1194,25 @@ async function ocrTick() {
   _ocrBusy = true;
   try {
     const worker = await ensureOcr();
-    const shot = await window.characast.getObsScreenshot({ width: 1280, quality: 70 });
-    if (!shot) return;
+    const shot = await window.characast.getObsScreenshot({ width: 1920, quality: 80 });  // 小字要高解析度
+    if (!shot) { appendLog({ level: 'warn', msg: 'Vision OCR:截不到畫面(OBS 沒連?)' }); return; }
     for (const z of zones) {
       const crop = await cropForOcr(shot, z.rect);
-      if (!crop) continue;
+      if (!crop) { appendLog({ level: 'warn', msg: `Vision 🔢 ${z.label}:框太小,放大一點` }); continue; }
       let raw = '', conf = 0;
-      try { const res = await worker.recognize(crop); raw = (res?.data?.text || '').trim(); conf = res?.data?.confidence || 0; }
-      catch { continue; }
-      if (conf < OCR_MIN_CONF) { _ocrPending[z.id] = null; continue; }   // 信心不足 → 不送
+      try { const res = await worker.recognize(crop); raw = (res?.data?.text || '').replace(/\s+/g, ' ').trim(); conf = res?.data?.confidence || 0; }
+      catch (e) { appendLog({ level: 'warn', msg: `Vision 🔢 ${z.label}:辨識失敗 ${e.message || e}` }); continue; }
       const val = parseOcr(raw);
-      if (!val) { _ocrPending[z.id] = null; continue; }                  // 沒讀到數字 → 不送
-      // 穩定門檻:連續讀到同值 N 次才送(殺瞬間誤判)
+      // 診斷:每次讀到什麼都記(含被擋原因)→ 讀不到時看這條來調
+      if (conf < OCR_MIN_CONF) { _ocrPending[z.id] = null; appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:讀到「${raw}」信心 ${conf | 0} < ${OCR_MIN_CONF} → 不送` }); continue; }
+      if (!val) { _ocrPending[z.id] = null; appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:讀到「${raw}」沒數字 → 不送` }); continue; }
       const pend = _ocrPending[z.id];
       if (pend && pend.val === val) pend.count++; else _ocrPending[z.id] = { val, count: 1 };
-      if (_ocrPending[z.id].count < OCR_STABLE_N) continue;
+      if (_ocrPending[z.id].count < OCR_STABLE_N) { appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:暫定「${val}」(信心 ${conf | 0},第 ${_ocrPending[z.id].count}/${OCR_STABLE_N} 次)` }); continue; }
       if (_ocrLastText[z.id] === val) continue;                          // 跟上次一樣 → 不重送
       _ocrLastText[z.id] = val;
       window.characast.sendStreamerVision(z.label + ':' + val);
-      appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:「${val}」(信心 ${conf | 0})→ 已上雲` });
+      appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:「${val}」(信心 ${conf | 0})→ 已上雲 ✓` });
     }
   } catch (e) {
     appendLog({ level: 'warn', msg: `Vision OCR:略過(${e.message || e})` });
