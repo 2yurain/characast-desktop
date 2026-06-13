@@ -985,26 +985,20 @@ function matchScene(vec, game) {
 function setCalHint(msg) { const h = $('cal-hint'); if (h) h.textContent = msg; }
 // 有效遊戲名:直播中用偵測到的,否則用手動輸入的(離線校準用)
 function effectiveGame() { return (_currentGame || ($('cal-game-input')?.value || '').trim()).trim(); }
-// 預設場景改「大事件 / 長相穩定的畫面」導向(CLIP 校得起來且最值得 AI 反應);
-// 行為級(團戰/走位)環境變數太多,few-shot 抓不準 → 留給未來蒸餾 CNN,不放預設。
-const CAL_PRESETS = ['勝利畫面', '失敗/結算', '死亡畫面', '升級', '選角/大廳', '載入畫面'];
-const CAL_CUSTOM = '__custom__';
-// 目前要擷取的場景標籤:選單值;選「自訂」時用自訂框的字
-function calLabel() {
-  const sel = $('cal-label'); if (!sel) return '';
-  if (sel.value === CAL_CUSTOM) return ($('cal-label-custom')?.value || '').trim();
-  return sel.value || '';
-}
-// 重建場景下拉:預設場景 ∪ 這款遊戲已建的標籤 + 自訂(保留目前選擇)
-function refreshCalLabels() {
-  const sel = $('cal-label'); if (!sel) return;
-  const prev = sel.value;
-  const existing = Object.keys(_visProfiles[effectiveGame()] || {});
-  const opts = [...new Set([...CAL_PRESETS, ...existing])];
-  sel.innerHTML = '<option value="">選場景…</option>'
-    + opts.map((o) => `<option value="${escAttr(o)}">${escTxt(o)}</option>`).join('')
-    + `<option value="${CAL_CUSTOM}">＋ 自訂場景…</option>`;
-  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+// 場景全自訂:打名字 → 建空場景 → 用清單的「＋擷取」存大事件畫面(多角度更準)。
+// 不放死預設;行為級(團戰/走位)few-shot 抓不準,那種改用「框選區」。
+function calAddScene() {
+  const game = effectiveGame();
+  if (!game) { setCalHint('先填遊戲名稱'); return; }
+  const name = ($('cal-new-name')?.value || '').trim().slice(0, 24);
+  if (!name) { setCalHint('先打一個場景名(例:五殺畫面)'); return; }
+  if (!_visProfiles[game]) _visProfiles[game] = {};
+  if (_visProfiles[game][name]) { setCalHint(`「${name}」已經有了`); return; }
+  if (Object.keys(_visProfiles[game]).length >= 24) { setCalHint('場景數已達上限(24)'); return; }
+  _visProfiles[game][name] = [];   // 先建空場景(本地;擷取第一張才會存檔)
+  if ($('cal-new-name')) $('cal-new-name').value = '';
+  renderCalList();
+  setCalHint(`✓ 已新增「${name}」— 按它那列的「＋擷取」存大事件畫面`);
 }
 function updateCalUI() {
   // 直播中偵測到遊戲 → 自動帶入輸入框(使用者還沒手動打才帶,免得蓋掉他打的)
@@ -1018,33 +1012,34 @@ function updateCalUI() {
   renderZoneList();   // 框選區清單跟著遊戲換
 }
 function renderCalList() {
-  refreshCalLabels();   // 場景下拉跟著已建標籤更新
   const box = $('cal-list'); if (!box) return;
   box.innerHTML = '';
   const game = effectiveGame();
-  if (!game) { box.innerHTML = '<div class="hint">先填上面的遊戲名,才能存校準樣本</div>'; return; }
+  if (!game) { box.innerHTML = '<div class="hint">先填上面的遊戲名,才能新增場景</div>'; return; }
   const prof = _visProfiles[game] || {};
   const labels = Object.keys(prof);
-  if (!labels.length) { box.innerHTML = '<div class="hint">「' + game + '」還沒有校準樣本</div>'; return; }
+  if (!labels.length) { box.innerHTML = '<div class="hint">還沒有場景 — 上面打名字按「＋ 新增場景」</div>'; return; }
   for (const label of labels) {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;justify-content:space-between';
-    const span = document.createElement('span'); span.textContent = `${label} ×${prof[label].length}`;
-    const del = document.createElement('button'); del.className = 'ghost'; del.type = 'button'; del.textContent = '刪除';
+    row.style.cssText = 'display:flex;align-items:center;gap:8px';
+    const span = document.createElement('span'); span.style.flex = '1';
+    span.textContent = `${label} ×${prof[label].length}`;
+    const cap = document.createElement('button'); cap.className = 'ghost'; cap.type = 'button'; cap.textContent = '＋擷取'; cap.style.padding = '2px 8px';
+    cap.addEventListener('click', () => calCapture(label));
+    const del = document.createElement('button'); del.className = 'ghost'; del.type = 'button'; del.textContent = '移除'; del.style.padding = '2px 8px';
     del.addEventListener('click', async () => {
       delete _visProfiles[game][label];
       if (!Object.keys(_visProfiles[game]).length) delete _visProfiles[game];
       await window.characast.setSettings({ visionProfiles: _visProfiles });
       renderCalList();
     });
-    row.appendChild(span); row.appendChild(del); box.appendChild(row);
+    row.appendChild(span); row.appendChild(cap); row.appendChild(del); box.appendChild(row);
   }
 }
-async function calCapture() {
+async function calCapture(label) {
   const game = effectiveGame();
-  const label = calLabel();
   if (!game) { setCalHint('先填遊戲名稱(離線可手動輸入)'); return; }
-  if (!label) { setCalHint('先從選單選一個場景,或選「自訂」打名字'); return; }
+  if (!label) { setCalHint('先新增一個場景'); return; }
   setCalHint('擷取中…(首次要載入向量模型)');
   try {
     const shot = await window.characast.getObsScreenshot({ width: 640, quality: 60 });
@@ -1055,20 +1050,12 @@ async function calCapture() {
     _visProfiles[game][label].push(await embedImage(shot));
     await window.characast.setSettings({ visionProfiles: _visProfiles });
     renderCalList();
-    // 擷取後維持選在剛擷取的標籤 → 可連續按「擷取」存同一種,不用重選/刪字;收起自訂框
-    const sel = $('cal-label'); if (sel) sel.value = label;
-    const cst = $('cal-label-custom'); if (cst) { cst.style.display = 'none'; cst.value = ''; }
-    setCalHint(`✓ 已存「${label}」第 ${_visProfiles[game][label].length} 張 — 可直接再按「擷取」存同一種,多角度更準`);
+    setCalHint(`✓ 已存「${label}」第 ${_visProfiles[game][label].length} 張 — 可再按「＋擷取」存同一種,多角度更準`);
   } catch (e) { setCalHint('擷取失敗:' + (e.message || e)); }
 }
-$('cal-capture')?.addEventListener('click', calCapture);
+$('cal-add')?.addEventListener('click', calAddScene);
+$('cal-new-name')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') calAddScene(); });
 $('cal-game-input')?.addEventListener('input', () => { renderCalList(); renderZoneList(); });   // 換遊戲名 → 校準列表 + 框選清單跟著換
-// 選「＋ 自訂場景…」才顯示自訂輸入框
-$('cal-label')?.addEventListener('change', () => {
-  const cst = $('cal-label-custom'); if (!cst) return;
-  if ($('cal-label').value === CAL_CUSTOM) { cst.style.display = ''; cst.focus(); }
-  else cst.style.display = 'none';
-});
 
 // ===== ⚔️ 戰鬥偵測:盯 kill feed 區域的變化頻率（短時間爆量 = 團戰）=====
 async function regionHash(dataUrl, r) {

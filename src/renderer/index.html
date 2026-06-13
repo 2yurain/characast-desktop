@@ -162,16 +162,15 @@
         <!-- Layer 2 校準:教這款遊戲的細場景(團戰/結算…)-->
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2a2738)">
           <div style="font-weight:600;margin-bottom:4px">🎯 校準這款遊戲(進階,選用)</div>
-          <p class="howto-note" style="margin-bottom:8px">教 AI 認這款遊戲的「<strong>大事件畫面</strong>」:勝利 / 結算 / 死亡 / 升級 / 選角 / 載入 —— 這些每次長得都很像,校得起來<br>⚠ 行為(團戰 / 走位)環境變數太多、few-shot 抓不準,先別校,等之後的訓練模型<br>離線也能校準:用別人的畫面 / VOD,自己填遊戲名即可</p>
+          <p class="howto-note" style="margin-bottom:8px">教 AI 認這款遊戲「<strong>每次長得都很像的大事件畫面</strong>」(勝利 / 結算 / 死亡 / 五殺…自己命名)<br>自由新增場景 → 每個場景按「＋擷取」存幾張(多角度更準)<br>⚠ 行為(團戰 / 走位)few-shot 抓不準,那種改用下面的「框選區」<br>離線也能校:用別人的畫面 / VOD,自己填遊戲名即可</p>
           <label style="font-size:13px">遊戲名稱(校準檔 key)</label>
           <input id="cal-game-input" maxlength="80" placeholder="例:傳說對決(直播中會自動帶入 Twitch 分類)"
                  style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
           <div id="cal-game-hint" class="hint" style="margin:4px 0 8px">　</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-            <select id="cal-label"
-                    style="flex:1;min-width:140px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px"></select>
-            <input id="cal-label-custom" maxlength="24" placeholder="自訂場景名" style="display:none;flex:1;min-width:120px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
-            <button id="cal-capture" class="ghost" type="button">＋ 擷取此刻</button>
+            <input id="cal-new-name" maxlength="24" placeholder="場景名(例:五殺畫面)"
+                   style="flex:1;min-width:140px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
+            <button id="cal-add" class="ghost" type="button">＋ 新增場景</button>
           </div>
           <div id="cal-list" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>
           <div class="hint" id="cal-hint" style="margin-top:6px"></div>
