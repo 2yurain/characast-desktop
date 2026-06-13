@@ -837,9 +837,11 @@ const KF_DIFF = 6;              // 區域 aHash 漢明距離 > 此 = 有事件(�
 const KF_WINDOW_MS = 14_000;    // 事件統計窗
 const KF_HOT = 3;               // 窗內事件數 >= 此 = 激戰(rate)
 const OCR_TICK_MS = 4000;       // ocr 框掃描頻率(比 rate 重,放慢)
+const OCR_MIN_CONF = 65;        // tesseract 信心低於此 → 不送(寧可不報也不報錯)
+const OCR_STABLE_N = 2;         // 連續讀到同值 N 次才送(殺瞬間誤判)
 const VISION_COMBAT_LABEL = '團戰/戰鬥中';
 let _visHud = {}, _kfTimer = null, _kfBusy = false;
-let _ocrTimer = null, _ocrBusy = false, _ocrWorker = null, _ocrLoading = null, _ocrLastText = {};
+let _ocrTimer = null, _ocrBusy = false, _ocrWorker = null, _ocrLoading = null, _ocrLastText = {}, _ocrPending = {};
 // 每個 rate zone 各自的變化事件環:{ [zoneId]: { last:hashStr, events:[ts…] } }
 let _zoneState = {};
 // 框選 UI 暫存:正在拖的框 + 剛拖好待命名的 rect
@@ -865,7 +867,7 @@ async function startVision(tier) {
     _visTimer = setInterval(visTick, VISION_TICK_MS[tier] || VISION_TICK_MS.medium);
     _zoneState = {};
     _kfTimer = setInterval(rateTick, KF_TICK_MS);   // rate 框偵測(有框才會動)
-    _ocrLastText = {};
+    _ocrLastText = {}; _ocrPending = {};
     _ocrTimer = setInterval(ocrTick, OCR_TICK_MS);  // ocr 框讀數字(有框才會動)
     setVisHint('✓ AI 看得到畫面了 — 畫面有變才判斷(本地 GPU)');
     appendLog({ level: 'info', msg: `Vision:已啟用(${tier})` });
@@ -935,7 +937,7 @@ function stopVision() {
   if (_kfTimer) { clearInterval(_kfTimer); _kfTimer = null; }
   if (_ocrTimer) { clearInterval(_ocrTimer); _ocrTimer = null; }
   _visClassifier = null; _visBusy = false; _visLastHash = null; _visLastLabel = '';
-  _zoneState = {}; _ocrLastText = {};
+  _zoneState = {}; _ocrLastText = {}; _ocrPending = {};
 }
 
 // 讓 AI 看畫面:開關單一入口(分頁勾選 + 快速開關都走這)
@@ -1129,28 +1131,58 @@ async function ensureOcr() {
     const T = await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm');
     const createWorker = T.createWorker || (T.default && T.default.createWorker);
     const worker = await createWorker('eng');
-    await worker.setParameters({ tessedit_char_whitelist: '0123456789/:.-', tessedit_pageseg_mode: '7' });
+    await worker.setParameters({ tessedit_char_whitelist: '0123456789/:', tessedit_pageseg_mode: '7' });
     _ocrWorker = worker;
     return worker;
   })();
   return _ocrLoading;
 }
+// Otsu:從灰階直方圖找最佳二值門檻(自適應,解決亮背景)
+function otsuThreshold(hist, total) {
+  let sum = 0; for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, max = 0, thr = 127;
+  for (let i = 0; i < 256; i++) {
+    wB += hist[i]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sumB += i * hist[i];
+    const mB = sumB / wB, mF = (sum - sumB) / wF;
+    const between = wB * wF * (mB - mF) * (mB - mF);
+    if (between > max) { max = between; thr = i; }
+  }
+  return thr;
+}
 async function cropForOcr(dataUrl, r) {
   const img = await _loadImage(dataUrl);
   const sx = r.x * img.width, sy = r.y * img.height, sw = r.w * img.width, sh = r.h * img.height;
   if (sw < 6 || sh < 6) return null;
-  const scale = Math.min(4, Math.max(1, 64 / sh));   // 小字放大到 ~64px 高
+  const scale = Math.min(6, Math.max(2, 80 / sh));   // 小字放大到 ~80px 高(至少 2x)
+  const W = Math.round(sw * scale), H = Math.round(sh * scale);
   const c = _ocrCanvas || (_ocrCanvas = document.createElement('canvas'));
-  c.width = Math.round(sw * scale); c.height = Math.round(sh * scale);
+  c.width = W; c.height = H;
   const ctx = c.getContext('2d');
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
-  const d = ctx.getImageData(0, 0, c.width, c.height), px = d.data;   // 灰階 + 二值化衝對比
-  for (let i = 0; i < px.length; i += 4) {
-    const v = px[i]*0.299 + px[i+1]*0.587 + px[i+2]*0.114, b = v > 140 ? 255 : 0;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, W, H);
+  const d = ctx.getImageData(0, 0, W, H), px = d.data;
+  const hist = new Uint32Array(256), gray = new Uint8Array(W * H);
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) { const v = (px[i]*0.299 + px[i+1]*0.587 + px[i+2]*0.114) | 0; gray[j] = v; hist[v]++; }
+  const thr = otsuThreshold(hist, W * H);
+  let above = 0; for (let j = 0; j < gray.length; j++) if (gray[j] > thr) above++;
+  const textIsBright = above <= gray.length / 2;   // 亮的是少數 → 亮的才是文字(HUD 多為白字)
+  for (let i = 0, j = 0; i < px.length; i += 4, j++) {
+    const isText = textIsBright ? gray[j] > thr : gray[j] <= thr;
+    const b = isText ? 0 : 255;   // 一律輸出黑字白底(tesseract 偏好)
     px[i] = px[i+1] = px[i+2] = b;
   }
   ctx.putImageData(d, 0, 0);
   return c.toDataURL('image/png');
+}
+// 只取數字段,每段最多 3 位,正規化:1 段=數字、2 段=我:敵、3 段=K/D/A
+function parseOcr(raw) {
+  const groups = (String(raw).match(/\d+/g) || []).map((s) => s.slice(0, 3));
+  if (!groups.length) return null;
+  if (groups.length === 1) return groups[0];
+  if (groups.length === 2) return groups.join(':');
+  return groups.slice(0, 3).join('/');
 }
 async function ocrTick() {
   if (_ocrBusy) return;
@@ -1159,18 +1191,25 @@ async function ocrTick() {
   _ocrBusy = true;
   try {
     const worker = await ensureOcr();
-    const shot = await window.characast.getObsScreenshot({ width: 1280, quality: 60 });
+    const shot = await window.characast.getObsScreenshot({ width: 1280, quality: 70 });
     if (!shot) return;
     for (const z of zones) {
       const crop = await cropForOcr(shot, z.rect);
       if (!crop) continue;
-      let text = '';
-      try { const res = await worker.recognize(crop); text = (res?.data?.text || '').replace(/\s+/g, ' ').trim(); } catch { continue; }
-      if (!/\d/.test(text)) continue;            // 沒數字 → 不送
-      if (_ocrLastText[z.id] === text) continue; // 沒變 → 不送
-      _ocrLastText[z.id] = text;
-      window.characast.sendStreamerVision(z.label + ':' + text);
-      appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:「${text}」→ 已上雲` });
+      let raw = '', conf = 0;
+      try { const res = await worker.recognize(crop); raw = (res?.data?.text || '').trim(); conf = res?.data?.confidence || 0; }
+      catch { continue; }
+      if (conf < OCR_MIN_CONF) { _ocrPending[z.id] = null; continue; }   // 信心不足 → 不送
+      const val = parseOcr(raw);
+      if (!val) { _ocrPending[z.id] = null; continue; }                  // 沒讀到數字 → 不送
+      // 穩定門檻:連續讀到同值 N 次才送(殺瞬間誤判)
+      const pend = _ocrPending[z.id];
+      if (pend && pend.val === val) pend.count++; else _ocrPending[z.id] = { val, count: 1 };
+      if (_ocrPending[z.id].count < OCR_STABLE_N) continue;
+      if (_ocrLastText[z.id] === val) continue;                          // 跟上次一樣 → 不重送
+      _ocrLastText[z.id] = val;
+      window.characast.sendStreamerVision(z.label + ':' + val);
+      appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:「${val}」(信心 ${conf | 0})→ 已上雲` });
     }
   } catch (e) {
     appendLog({ level: 'warn', msg: `Vision OCR:略過(${e.message || e})` });
