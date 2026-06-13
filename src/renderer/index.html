@@ -176,16 +176,25 @@
           <div id="cal-list" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>
           <div class="hint" id="cal-hint" style="margin-top:6px"></div>
 
-          <!-- ⚔️ 戰鬥偵測:框一次 kill feed 區,運行時盯那塊的變化頻率 → 團戰 -->
+          <!-- 🎯 框選區:多個框,每框一種偵測法(變化率 / 讀數字)-->
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2a2738)">
-            <div style="font-weight:600;margin-bottom:4px">⚔️ 戰鬥偵測（團戰，準度最高）</div>
-            <p class="howto-note" style="margin-bottom:8px">在畫面上**框一次 kill feed（擊殺列表）區域**，之後我只盯那塊的變化頻率——短時間內一直變 = 團戰。不看整張畫面，所以**不受地圖影響**。</p>
-            <button id="kf-pick-btn" class="ghost" type="button">📐 框戰鬥區（kill feed）</button>
+            <div style="font-weight:600;margin-bottom:4px">🎯 框選區（戰鬥 / 戰況 / 人頭比數）</div>
+            <p class="howto-note" style="margin-bottom:8px">在畫面上框要盯的區塊，每框選一種偵測法：<br>• <strong>變化率</strong>（戰鬥框 / 戰況框）— 盯那塊變多快，爆動 = 激戰，不看內容、不受地圖影響<br>• <strong>讀數字</strong>（人頭比數 / KDA）— 讀那塊的數字念給 AI，只送文字<br>⚠ 讀數字需 HUD 數字夠清楚，版位固定的計分板最準；準度因遊戲而異</p>
+            <div id="zone-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
+            <button id="kf-pick-btn" class="ghost" type="button">📐 新增框選區</button>
             <div id="kf-pick" style="display:none;position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:crosshair;user-select:none">
               <img id="kf-img" style="width:100%;display:block;pointer-events:none" alt="OBS 畫面" />
               <div id="kf-box" style="display:none;position:absolute;border:2px solid #ff5a5a;background:rgba(255,90,90,.18);pointer-events:none"></div>
             </div>
-            <div class="hint" id="kf-hint" style="margin-top:6px">尚未框戰鬥區</div>
+            <div id="zone-form" style="display:none;margin-top:8px;gap:8px;flex-wrap:wrap;align-items:center">
+              <input id="zone-name" maxlength="16" placeholder="框名（戰鬥 / 戰況 / 人頭）" style="flex:1;min-width:120px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
+              <select id="zone-mode" style="background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
+                <option value="rate">變化率（戰鬥 / 戰況）</option>
+                <option value="ocr">讀數字（人頭 / KDA）</option>
+              </select>
+              <button id="zone-save" class="ghost" type="button">✓ 存框</button>
+            </div>
+            <div class="hint" id="kf-hint" style="margin-top:6px">尚未框選任何區域</div>
           </div>
         </div>
       </div>

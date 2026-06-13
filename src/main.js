@@ -69,17 +69,38 @@ ipcMain.handle('settings:get', () => settings.all());
 // renderer 只允許改這些 key(白名單,擋掉亂塞鍵 / 原型污染)
 const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance', 'mic', 'stt', 'vision', 'visionProfiles', 'visionHud']);
 
-// Vision 戰鬥偵測:每款遊戲的 kill-feed 區域(畫面比例 0~1)。{ [game]: { kf: {x,y,w,h} } }
+// Vision 框選區:每款遊戲一組 zones(畫面比例 0~1)。
+//   { [game]: { zones: [ { id, label, mode:'rate'|'ocr', rect:{x,y,w,h} } ] } }
+//   - rate:盯變化率(戰鬥框 / 戰況框)；ocr:讀數字(人頭比數 / KDA)
+//   - 向後相容:舊的 { kf:{...} } 自動轉成一個 rate 框(label「戰鬥」)
+const VISION_ZONE_MODES = new Set(['rate', 'ocr']);
 function sanitizeVisionHud(v) {
   const out = {};
   if (!v || typeof v !== 'object') return out;
   const f = (n) => { const x = Number(n); return Number.isFinite(x) ? Math.max(0, Math.min(1, x)) : 0; };
+  const cleanZone = (z, i) => {
+    if (!z || typeof z !== 'object' || !z.rect) return null;
+    const r = z.rect;
+    if (!(Number(r.w) > 0 && Number(r.h) > 0)) return null;
+    return {
+      id: String(z.id || ('z' + i)).slice(0, 24),
+      label: String(z.label || '區域').slice(0, 16),
+      mode: VISION_ZONE_MODES.has(z.mode) ? z.mode : 'rate',
+      rect: { x: f(r.x), y: f(r.y), w: f(r.w), h: f(r.h) },
+    };
+  };
   let games = 0;
   for (const [game, cfg] of Object.entries(v)) {
     if (game === '__proto__' || game === 'constructor') continue;
-    if (++games > 30 || !cfg || typeof cfg !== 'object' || !cfg.kf) continue;
-    const k = cfg.kf;
-    out[String(game).slice(0, 80)] = { kf: { x: f(k.x), y: f(k.y), w: f(k.w), h: f(k.h) } };
+    if (++games > 30 || !cfg || typeof cfg !== 'object') continue;
+    let zones = [];
+    if (Array.isArray(cfg.zones)) {
+      zones = cfg.zones.slice(0, 6).map(cleanZone).filter(Boolean);
+    } else if (cfg.kf) {   // 舊格式 → 單一 rate 框
+      const z = cleanZone({ id: 'kf', label: '戰鬥', mode: 'rate', rect: cfg.kf }, 0);
+      if (z) zones = [z];
+    }
+    if (zones.length) out[String(game).slice(0, 80)] = { zones };
   }
   return out;
 }
@@ -159,7 +180,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
         settings.set('visionProfiles', sanitizeVisionProfiles(v));
         continue;
       }
-      // visionHud:每款遊戲的 kill-feed 區域(戰鬥偵測用)
+      // visionHud:每款遊戲的框選區 zones(rate 戰鬥/戰況 + ocr 人頭/KDA)
       if (k === 'visionHud') {
         settings.set('visionHud', sanitizeVisionHud(v));
         continue;

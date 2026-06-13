@@ -829,13 +829,21 @@ let _visTimer = null, _visBusy = false, _visLastHash = null, _visLastLabel = '',
 let _visLocalOn = true;
 // Layer 2(每款遊戲校準,少樣本 CLIP 原型,本地存)
 let _visEmbedder = null, _visEmbedderLoading = null, _visProfiles = {}, _currentGame = '';
-// 戰鬥偵測:只盯 kill-feed 區域的變化頻率(短時間爆量 = 團戰),不看整張畫面 → 對地圖免疫
-const KF_TICK_MS = 2500;        // kill-feed 區掃描頻率
+// 框選區偵測:每款遊戲一組 zones,兩種偵測法。
+//   rate(戰鬥框 / 戰況框):只盯那塊的變化頻率(短時間爆量 = 激戰),不看內容 → 對地圖免疫
+//   ocr (人頭比數 / KDA框):讀那塊的數字 → 送「人頭 5:3」這種短文字(重活在桌面端)
+const KF_TICK_MS = 2500;        // rate 框掃描頻率
 const KF_DIFF = 6;              // 區域 aHash 漢明距離 > 此 = 有事件(那塊變了)
 const KF_WINDOW_MS = 14_000;    // 事件統計窗
-const KF_HOT = 3;               // 窗內事件數 >= 此 = 團戰
+const KF_HOT = 3;               // 窗內事件數 >= 此 = 激戰(rate)
+const OCR_TICK_MS = 4000;       // ocr 框掃描頻率(比 rate 重,放慢)
 const VISION_COMBAT_LABEL = '團戰/戰鬥中';
-let _visHud = {}, _kfTimer = null, _kfLastHash = null, _kfEvents = [], _kfBusy = false, _kfDrag = null;
+let _visHud = {}, _kfTimer = null, _kfBusy = false;
+let _ocrTimer = null, _ocrBusy = false, _ocrWorker = null, _ocrLoading = null, _ocrLastText = {};
+// 每個 rate zone 各自的變化事件環:{ [zoneId]: { last:hashStr, events:[ts…] } }
+let _zoneState = {};
+// 框選 UI 暫存:正在拖的框 + 剛拖好待命名的 rect
+let _kfDrag = null, _pendingRect = null;
 
 function setVisHint(msg) { const h = $('vision-hint'); if (h) h.textContent = msg; }
 
@@ -855,8 +863,10 @@ async function startVision(tier) {
     }
     _visTier = tier; _visStarting = false; _visLastHash = null; _visLastLabel = '';
     _visTimer = setInterval(visTick, VISION_TICK_MS[tier] || VISION_TICK_MS.medium);
-    _kfLastHash = null; _kfEvents = [];
-    _kfTimer = setInterval(kfTick, KF_TICK_MS);   // 戰鬥偵測(有框 kill feed 區才會動)
+    _zoneState = {};
+    _kfTimer = setInterval(rateTick, KF_TICK_MS);   // rate 框偵測(有框才會動)
+    _ocrLastText = {};
+    _ocrTimer = setInterval(ocrTick, OCR_TICK_MS);  // ocr 框讀數字(有框才會動)
     setVisHint('✓ AI 看得到畫面了 — 畫面有變才判斷(本地 GPU)');
     appendLog({ level: 'info', msg: `Vision:已啟用(${tier})` });
   } catch (e) {
@@ -897,9 +907,10 @@ async function visTick() {
     if (!top || top.score < VISION_MIN_SCORE) return;
     let zh = (VISION_LABELS.find((l) => l.en === top.label) || {}).zh || top.label;
     const g2 = effectiveGame();
-    // 戰鬥偵測優先(最準、對地圖免疫):遊戲中 + kill feed 區短時間爆量 → 團戰
-    if (zh === VISION_GAME_LABEL && combatHot()) {
-      zh = VISION_COMBAT_LABEL;
+    // 框選區偵測優先(最準、對地圖免疫):遊戲中 + 有 rate 框短時間爆量 → 激戰
+    const hot = hotZoneLabels();
+    if (zh === VISION_GAME_LABEL && hot.length) {
+      zh = hot[0] === '戰鬥' && hot.length === 1 ? VISION_COMBAT_LABEL : (hot.join('/') + '中');
     } else if (zh === VISION_GAME_LABEL && g2 && _visProfiles[g2]) {
       // Layer 2:校準原型細分(大事件畫面,如勝利/結算)
       try {
@@ -922,8 +933,9 @@ function stopVision() {
   _visTier = null;
   if (_visTimer) { clearInterval(_visTimer); _visTimer = null; }
   if (_kfTimer) { clearInterval(_kfTimer); _kfTimer = null; }
+  if (_ocrTimer) { clearInterval(_ocrTimer); _ocrTimer = null; }
   _visClassifier = null; _visBusy = false; _visLastHash = null; _visLastLabel = '';
-  _kfLastHash = null; _kfEvents = [];
+  _zoneState = {}; _ocrLastText = {};
 }
 
 // 讓 AI 看畫面:開關單一入口(分頁勾選 + 快速開關都走這)
@@ -1001,6 +1013,7 @@ function updateCalUI() {
     ? `直播中偵測到:${_currentGame}(已帶入)`
     : '離線中 — 自己填遊戲名即可;直播時要跟 Twitch 分類一致才會自動套用';
   renderCalList();
+  renderZoneList();   // 框選區清單跟著遊戲換
 }
 function renderCalList() {
   refreshCalLabels();   // 場景下拉跟著已建標籤更新
@@ -1047,7 +1060,7 @@ async function calCapture() {
   } catch (e) { setCalHint('擷取失敗:' + (e.message || e)); }
 }
 $('cal-capture')?.addEventListener('click', calCapture);
-$('cal-game-input')?.addEventListener('input', renderCalList);   // 換遊戲名 → 列表 + 場景下拉跟著換
+$('cal-game-input')?.addEventListener('input', () => { renderCalList(); renderZoneList(); });   // 換遊戲名 → 校準列表 + 框選清單跟著換
 // 選「＋ 自訂場景…」才顯示自訂輸入框
 $('cal-label')?.addEventListener('change', () => {
   const cst = $('cal-label-custom'); if (!cst) return;
@@ -1072,36 +1085,124 @@ async function regionHash(dataUrl, r) {
   let bits = ''; for (let i = 0; i < 256; i++) bits += g[i] >= avg ? '1' : '0';
   return bits;
 }
-async function kfTick() {
+function gameZones() { return _visHud[effectiveGame()]?.zones || []; }
+
+// ---- rate 框:盯各框變化頻率 ----
+async function rateTick() {
   if (_kfBusy) return;
-  const kf = _visHud[effectiveGame()]?.kf;
-  if (!kf || !(kf.w > 0 && kf.h > 0)) return;     // 沒框戰鬥區 → 不偵測
+  const zones = gameZones().filter((z) => z.mode === 'rate');
+  if (!zones.length) return;
   _kfBusy = true;
   try {
     const shot = await window.characast.getObsScreenshot({ width: 960, quality: 50 });
     if (!shot) return;
-    const h = await regionHash(shot, kf);
-    if (!h) return;
-    if (_kfLastHash && _hamming(h, _kfLastHash) > KF_DIFF) _kfEvents.push(Date.now());   // 那塊變了 = 一個事件
-    _kfLastHash = h;
+    const now = Date.now();
+    for (const z of zones) {
+      const h = await regionHash(shot, z.rect);
+      if (!h) continue;
+      const st = _zoneState[z.id] || (_zoneState[z.id] = { last: null, events: [] });
+      if (st.last && _hamming(h, st.last) > KF_DIFF) st.events.push(now);   // 那塊變了 = 一個事件
+      st.last = h;
+    }
   } catch { /* 略過此次 */ } finally { _kfBusy = false; }
 }
-function combatHot() {
+// 目前「爆動中」的 rate 框標籤(去重)
+function hotZoneLabels() {
   const now = Date.now();
-  _kfEvents = _kfEvents.filter((t) => t >= now - KF_WINDOW_MS);
-  return _kfEvents.length >= KF_HOT;
+  const out = [];
+  for (const z of gameZones()) {
+    if (z.mode !== 'rate') continue;
+    const st = _zoneState[z.id];
+    if (!st) continue;
+    st.events = st.events.filter((t) => t >= now - KF_WINDOW_MS);
+    if (st.events.length >= KF_HOT && !out.includes(z.label)) out.push(z.label);
+  }
+  return out;
 }
 
-// ----- kill feed 區域校準（在畫面上拖一個框）-----
+// ---- ocr 框:讀數字(人頭比數 / KDA),tesseract.js 懶載,只送短文字 ----
+let _ocrCanvas = null;
+async function ensureOcr() {
+  if (_ocrWorker) return _ocrWorker;
+  if (_ocrLoading) return _ocrLoading;
+  _ocrLoading = (async () => {
+    const T = await import('https://cdn.jsdelivr.net/npm/tesseract.js@5/+esm');
+    const createWorker = T.createWorker || (T.default && T.default.createWorker);
+    const worker = await createWorker('eng');
+    await worker.setParameters({ tessedit_char_whitelist: '0123456789/:.-', tessedit_pageseg_mode: '7' });
+    _ocrWorker = worker;
+    return worker;
+  })();
+  return _ocrLoading;
+}
+async function cropForOcr(dataUrl, r) {
+  const img = await _loadImage(dataUrl);
+  const sx = r.x * img.width, sy = r.y * img.height, sw = r.w * img.width, sh = r.h * img.height;
+  if (sw < 6 || sh < 6) return null;
+  const scale = Math.min(4, Math.max(1, 64 / sh));   // 小字放大到 ~64px 高
+  const c = _ocrCanvas || (_ocrCanvas = document.createElement('canvas'));
+  c.width = Math.round(sw * scale); c.height = Math.round(sh * scale);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  const d = ctx.getImageData(0, 0, c.width, c.height), px = d.data;   // 灰階 + 二值化衝對比
+  for (let i = 0; i < px.length; i += 4) {
+    const v = px[i]*0.299 + px[i+1]*0.587 + px[i+2]*0.114, b = v > 140 ? 255 : 0;
+    px[i] = px[i+1] = px[i+2] = b;
+  }
+  ctx.putImageData(d, 0, 0);
+  return c.toDataURL('image/png');
+}
+async function ocrTick() {
+  if (_ocrBusy) return;
+  const zones = gameZones().filter((z) => z.mode === 'ocr');
+  if (!zones.length) return;
+  _ocrBusy = true;
+  try {
+    const worker = await ensureOcr();
+    const shot = await window.characast.getObsScreenshot({ width: 1280, quality: 60 });
+    if (!shot) return;
+    for (const z of zones) {
+      const crop = await cropForOcr(shot, z.rect);
+      if (!crop) continue;
+      let text = '';
+      try { const res = await worker.recognize(crop); text = (res?.data?.text || '').replace(/\s+/g, ' ').trim(); } catch { continue; }
+      if (!/\d/.test(text)) continue;            // 沒數字 → 不送
+      if (_ocrLastText[z.id] === text) continue; // 沒變 → 不送
+      _ocrLastText[z.id] = text;
+      window.characast.sendStreamerVision(z.label + ':' + text);
+      appendLog({ level: 'info', msg: `Vision 🔢 ${z.label}:「${text}」→ 已上雲` });
+    }
+  } catch (e) {
+    appendLog({ level: 'warn', msg: `Vision OCR:略過(${e.message || e})` });
+  } finally { _ocrBusy = false; }
+}
+
+// ----- 框選 UI:多個框,每框選一種偵測法,在畫面上拖框 → 命名 + 選法 → 存 -----
 function setKfHint(m) { const h = $('kf-hint'); if (h) h.textContent = m; }
-function kfShowSavedBox() {
-  const kf = _visHud[effectiveGame()]?.kf;
-  const box = $('kf-box'); if (!box) return;
-  if (kf && kf.w > 0 && kf.h > 0) {
-    box.style.left = (kf.x * 100) + '%'; box.style.top = (kf.y * 100) + '%';
-    box.style.width = (kf.w * 100) + '%'; box.style.height = (kf.h * 100) + '%';
-    box.style.display = 'block';
-  } else box.style.display = 'none';
+function renderZoneList() {
+  const box = $('zone-list'); if (!box) return;
+  box.innerHTML = '';
+  const zones = gameZones();
+  for (const z of zones) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 10px';
+    const tag = z.mode === 'ocr' ? '🔢 讀數字' : '📈 變化率';
+    const meta = document.createElement('span');
+    meta.style.flex = '1';
+    meta.textContent = `${z.label} · ${tag} · ${Math.round(z.rect.w*100)}×${Math.round(z.rect.h*100)}%`;
+    const del = document.createElement('button');
+    del.className = 'ghost'; del.type = 'button'; del.textContent = '🗑'; del.style.padding = '2px 8px';
+    del.addEventListener('click', async () => {
+      const g = effectiveGame(); if (!g || !_visHud[g]) return;
+      _visHud[g].zones = (_visHud[g].zones || []).filter((x) => x.id !== z.id);
+      if (!_visHud[g].zones.length) delete _visHud[g];
+      delete _zoneState[z.id]; delete _ocrLastText[z.id];
+      await window.characast.setSettings({ visionHud: _visHud });
+      renderZoneList();
+    });
+    row.appendChild(meta); row.appendChild(del);
+    box.appendChild(row);
+  }
 }
 $('kf-pick-btn')?.addEventListener('click', async () => {
   const game = effectiveGame();
@@ -1111,8 +1212,10 @@ $('kf-pick-btn')?.addEventListener('click', async () => {
   if (!shot) { setKfHint('截不到畫面 — 確認 OBS 已連線'); return; }
   const img = $('kf-img'); if (img) img.src = shot;
   const pick = $('kf-pick'); if (pick) pick.style.display = 'block';
-  kfShowSavedBox();
-  setKfHint('在畫面上拖一個框，框住 kill feed（擊殺列表）那塊');
+  const kbox = $('kf-box'); if (kbox) kbox.style.display = 'none';
+  const form = $('zone-form'); if (form) form.style.display = 'none';
+  _pendingRect = null;
+  setKfHint('在畫面上拖一個框,框住要盯的區塊');
 });
 $('kf-pick')?.addEventListener('mousedown', (e) => {
   const r = $('kf-pick').getBoundingClientRect();
@@ -1128,23 +1231,36 @@ window.addEventListener('mousemove', (e) => {
   box.style.width = Math.abs(x1 - x0) + 'px'; box.style.height = Math.abs(y1 - y0) + 'px';
   box.style.display = 'block';
 });
-window.addEventListener('mouseup', async (e) => {
+window.addEventListener('mouseup', (e) => {
   if (!_kfDrag) return;
   const { x0, y0, r } = _kfDrag; _kfDrag = null;
   const x1 = Math.max(0, Math.min(r.width, e.clientX - r.left));
   const y1 = Math.max(0, Math.min(r.height, e.clientY - r.top));
   const left = Math.min(x0, x1), top = Math.min(y0, y1);
   const w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
-  if (w < 8 || h < 8) { setKfHint('框太小了，重拖一次'); return; }
+  if (w < 8 || h < 8) { setKfHint('框太小了,重拖一次'); return; }
+  _pendingRect = { x: left / r.width, y: top / r.height, w: w / r.width, h: h / r.height };
+  const form = $('zone-form'); if (form) form.style.display = 'flex';
+  setKfHint('幫這個框取名 + 選偵測法 → 存框');
+});
+$('zone-save')?.addEventListener('click', async () => {
+  if (!_pendingRect) { setKfHint('先在畫面上拖一個框'); return; }
   const game = effectiveGame();
   if (!game) { setKfHint('先填遊戲名'); return; }
-  const kf = { x: left / r.width, y: top / r.height, w: w / r.width, h: h / r.height };
   if (!_visHud[game]) _visHud[game] = {};
-  _visHud[game].kf = kf;
-  _kfLastHash = null; _kfEvents = [];
+  if (!Array.isArray(_visHud[game].zones)) _visHud[game].zones = [];
+  if (_visHud[game].zones.length >= 6) { setKfHint('一款遊戲最多 6 個框'); return; }
+  const label = ($('zone-name')?.value || '').trim().slice(0, 16) || '區域';
+  const mode = $('zone-mode')?.value === 'ocr' ? 'ocr' : 'rate';
+  const id = 'z' + Date.now().toString(36);
+  _visHud[game].zones.push({ id, label, mode, rect: _pendingRect });
   await window.characast.setSettings({ visionHud: _visHud });
-  kfShowSavedBox();
-  setKfHint(`✓ 已框戰鬥區（${Math.round(kf.w*100)}%×${Math.round(kf.h*100)}%）— 偵測到團戰會自動報`);
+  _pendingRect = null;
+  if ($('zone-name')) $('zone-name').value = '';
+  const form = $('zone-form'); if (form) form.style.display = 'none';
+  const pick = $('kf-pick'); if (pick) pick.style.display = 'none';
+  renderZoneList();
+  setKfHint(`✓ 已存「${label}」(${mode === 'ocr' ? '讀數字' : '變化率'})`);
 });
 
 // 雲端認證成功的瞬間同步一次;之後每 60s 再對一次(後台改設定能跟上)
