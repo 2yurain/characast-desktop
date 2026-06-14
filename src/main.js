@@ -225,6 +225,11 @@ ipcMain.on('streamer:speech', (_e, text) => {
   if (!t || !cloud.isConnected()) return;
   cloud.send({ type: 'streamer.speech', text: t.slice(0, 300) });
 });
+// 歌唱音準:renderer 定期送「本場累計音準聚合」→ 轉給 cloud(成長報告 B 維度;沒連上就丟棄)
+ipcMain.on('streamer:pitch', (_e, stats) => {
+  if (!stats || typeof stats !== 'object' || !cloud.isConnected()) return;
+  cloud.send({ type: 'streamer.pitch', stats });
+});
 // Vision:renderer 要 OBS 目前畫面縮圖(回 base64 data URL 或 null)
 ipcMain.handle('obs:screenshot', async (_e, opts) => {
   try { return await obs.getScreenshot(opts || {}); }

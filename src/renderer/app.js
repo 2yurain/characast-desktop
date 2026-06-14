@@ -476,6 +476,37 @@ $('tts-test')?.addEventListener('click', () => {
 let _resoStream = null, _resoCtx = null, _resoTimer = null;
 let _resoEnergy = 0, _resoFreq = 0, _resoCentroid = 0;   // centroid = 共鳴明亮度(胸→頭)
 
+// 歌唱音準累計(成長報告 B 維度)— resonance 開啟期間累計,定期 + 停止時 flush 給 cloud。
+let _pitchN = 0, _pitchVoiced = 0, _pitchF0Sum = 0, _pitchF0Min = 0, _pitchF0Max = 0, _pitchStable = 0, _pitchPrevF0 = 0, _pitchFlushTimer = null;
+function pitchReset() { _pitchN = 0; _pitchVoiced = 0; _pitchF0Sum = 0; _pitchF0Min = 0; _pitchF0Max = 0; _pitchStable = 0; _pitchPrevF0 = 0; }
+function pitchAccumulate(f0) {
+  _pitchN++;
+  if (f0 > 0) {
+    _pitchVoiced++;
+    _pitchF0Sum += f0;
+    _pitchF0Min = _pitchF0Min ? Math.min(_pitchF0Min, f0) : f0;
+    _pitchF0Max = Math.max(_pitchF0Max, f0);
+    // 跟前一幀差 < 50 cents(半個半音內)算「穩」→ 粗略音準穩定度
+    if (_pitchPrevF0 > 0 && Math.abs(1200 * Math.log2(f0 / _pitchPrevF0)) < 50) _pitchStable++;
+    _pitchPrevF0 = f0;
+  } else {
+    _pitchPrevF0 = 0;
+  }
+}
+function pitchFlush() {
+  if (_pitchVoiced < 20) return;   // 樣本太少不送(避免雜訊)
+  try {
+    window.characast.sendPitchStats?.({
+      samples: _pitchVoiced,
+      f0Avg: Math.round(_pitchF0Sum / _pitchVoiced),
+      f0Min: Math.round(_pitchF0Min || 0),
+      f0Max: Math.round(_pitchF0Max),
+      voicedRatio: +(_pitchVoiced / Math.max(1, _pitchN)).toFixed(3),
+      stableRatio: +(_pitchStable / Math.max(1, _pitchVoiced)).toFixed(3),
+    });
+  } catch {}
+}
+
 const RESO_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 function freqToNoteName(f) {
   if (!f || f < 20) return '';
@@ -557,6 +588,7 @@ async function resoStart() {
     _resoEnergy += (Math.min(100, rms * 320) - _resoEnergy) * 0.5;
     const f = resoDetectPitch(buf, sr);
     _resoFreq = f > 0 ? f : 0;
+    pitchAccumulate(_resoFreq);   // 累計本場音準(成長報告 B 維度)
     // 共鳴明亮度 = 頻譜質心(只在有聲音時更新,靜音時保留上次值不亂跳)
     an.getByteFrequencyData(fd);
     let mag = 0, wsum = 0;
@@ -567,10 +599,15 @@ async function resoStart() {
     setResoHint(`✓ 歌聲共鳴開啟中 — ${note}`);
     try { window.characast.resonanceData?.({ energy: _resoEnergy, freq: _resoFreq, centroid: Math.round(_resoCentroid) }); } catch {}
   }, 50);
+  // 開始累計音準,每 60s flush 一次本場累計給 cloud(寫進當前 session)
+  pitchReset();
+  _pitchFlushTimer = setInterval(pitchFlush, 60_000);
   setResoHint('✓ 歌聲共鳴開啟中 — 唱歌看 OBS overlay');
 }
 
 function resoStop() {
+  if (_pitchFlushTimer) { clearInterval(_pitchFlushTimer); _pitchFlushTimer = null; }
+  pitchFlush();   // 收尾再送一次本場累計
   if (_resoTimer) { clearInterval(_resoTimer); _resoTimer = null; }
   if (_resoCtx) { try { _resoCtx.close(); } catch {} _resoCtx = null; }
   if (_resoStream) { try { _resoStream.getTracks().forEach((t) => t.stop()); } catch {} _resoStream = null; }

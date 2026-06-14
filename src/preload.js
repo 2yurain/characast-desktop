@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('characast', {
   getPerceptionConfig: () => ipcRenderer.invoke('perception:get'),
   // 本地 whisper 辨識出的主播語音 → main → cloud(只送短文字當脈絡)
   sendStreamerSpeech: (text) => ipcRenderer.send('streamer:speech', text),
+  // 歌唱音準:本場累計聚合 → main → cloud(成長報告 B 維度;低頻)
+  sendPitchStats: (stats) => ipcRenderer.send('streamer:pitch', stats),
   // Vision:跟 main 要 OBS 目前畫面縮圖(base64);CLIP 看完的短描述 → main → cloud
   getObsScreenshot: (opts) => ipcRenderer.invoke('obs:screenshot', opts),
   sendStreamerVision: (text) => ipcRenderer.send('streamer:vision', text),
