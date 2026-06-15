@@ -195,6 +195,7 @@ $('obs-setup-scenes')?.addEventListener('click', async () => {
   if ($('scene-game').checked) scenes.push('game');
   if ($('scene-chat').checked) scenes.push('chat');
   if ($('scene-sing').checked) scenes.push('sing');
+  if ($('scene-rebellion')?.checked) scenes.push('rebellion');
   if (!scenes.length) { out.textContent = '⚠ 至少勾一個場景'; return; }
   btn.disabled = true; out.textContent = '建立中…';
   try {

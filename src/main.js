@@ -317,12 +317,13 @@ const SCENE_TEMPLATES = {
   game: { name: '遊戲', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
   chat: { name: '聊天', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
   sing: { name: '唱歌', sources: [SCENE_SRC.avatar, SCENE_SRC.resonance, SCENE_SRC.songqueue] },
+  rebellion: { name: '叛變', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },   // AI 叛變橋段:發動時自動切來、平叛切回
 };
 ipcMain.handle('obs:setup-scenes', async (_e, opts) => {
   try {
     if (!obs.isConnected()) return { ok: false, reason: 'OBS 未連線 — 先在「OBS」分頁連上 OBS' };
     if (!cloud.isConnected()) return { ok: false, reason: '雲端未連線 — 先完成配對' };
-    const pick = (opts && Array.isArray(opts.scenes) && opts.scenes.length) ? opts.scenes : ['game', 'chat', 'sing'];
+    const pick = (opts && Array.isArray(opts.scenes) && opts.scenes.length) ? opts.scenes : ['game', 'chat', 'sing', 'rebellion'];
     const addPlaceholders = !opts || opts.addPlaceholders !== false;
     const urls = await cloud.requestOverlayUrls();
     const scenes = pick.map((k) => SCENE_TEMPLATES[k]).filter(Boolean);

@@ -49,8 +49,16 @@ class Relay {
     // Cloud → OBS
     this.cloud.on('message', async (msg) => {
       if (msg.type === 'obs.set_scene') {
+        // remember=true(叛變)→ 先記住目前場景,平叛時切回
+        if (msg.remember) { this._sceneBefore = await this.obs.getCurrentScene().catch(() => null); }
         const ok = await this.obs.setScene(msg.scene);
         this.onLog({ level: 'info', msg: `relay ← cloud: set_scene ${msg.scene} ${ok ? 'OK' : 'FAIL'}` });
+      } else if (msg.type === 'obs.scene_restore') {
+        if (this._sceneBefore) {
+          const ok = await this.obs.setScene(this._sceneBefore);
+          this.onLog({ level: 'info', msg: `relay ← cloud: scene_restore → ${this._sceneBefore} ${ok ? 'OK' : 'FAIL'}` });
+          this._sceneBefore = null;
+        }
       } else if (msg.type === 'mic.mute') {
         // 觀眾用 power「閉麥主播」→ 本機 OBS 把麥靜音 N 秒後自動解除
         const r = await this.obs.muteMicFor(msg.seconds, msg.inputName);

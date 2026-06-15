@@ -104,6 +104,15 @@ class ObsClient extends EventEmitter {
     return { ok: true, name, secs };
   }
 
+  /** 取目前節目場景名(叛變等「臨時切走再切回」用) */
+  async getCurrentScene() {
+    if (!this.connected || !this.obs) return null;
+    try {
+      const r = await this.obs.call('GetCurrentProgramScene');
+      return r?.currentProgramSceneName || r?.sceneName || null;
+    } catch { return null; }
+  }
+
   /** 主動切場景 — relay 從 cloud 收到 obs.set_scene 時呼叫 */
   async setScene(sceneName) {
     if (!this.connected || !this.obs) return false;
