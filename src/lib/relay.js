@@ -7,11 +7,12 @@
 // =====================================================
 
 class Relay {
-  constructor({ obs, cloud, onLog, onTts }) {
+  constructor({ obs, cloud, onLog, onTts, onVtsExpression }) {
     this.obs = obs;
     this.cloud = cloud;
     this.onLog = onLog || (() => {});
     this.onTts = onTts || (() => {});
+    this.onVtsExpression = onVtsExpression || (() => {});
     this._micMutedSince = null;
   }
 
@@ -75,6 +76,10 @@ class Relay {
           : `"${(msg.text || '').slice(0, 60)}"`;
         this.onLog({ level: 'info', msg: `relay ← cloud: ${msg.type} ${detail}` });
         this.onTts?.(msg);
+      } else if (msg.type === 'vts.expression') {
+        // 叛變(rebel)/ 平叛(neutral)→ 觸發對應 VTS 表情
+        this.onVtsExpression?.(msg.emotion);
+        this.onLog({ level: 'info', msg: `relay ← cloud: vts.expression ${msg.emotion}` });
       }
     });
   }

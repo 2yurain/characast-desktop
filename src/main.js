@@ -307,17 +307,19 @@ ipcMain.handle('connect:obs', () => { reconnectObs(); return { ok: true }; });
 
 // 一鍵設置 OBS 場景:跟雲端要 overlay 網址 → 在 OBS 建「遊戲 / 聊天 / 唱歌」場景(只加不減,同名場景跳過)
 const SCENE_SRC = {
-  avatar:    { key: 'avatar',    inputName: 'CharaCast 形象' },
-  overlay:   { key: 'overlay',   inputName: 'CharaCast 多功能overlay' },
-  resonance: { key: 'resonance', inputName: 'CharaCast 聲音共鳴' },
-  songqueue: { key: 'songqueue', inputName: 'CharaCast 點歌清單' },
+  avatar:      { key: 'avatar',      inputName: 'CharaCast 形象' },
+  overlay:     { key: 'overlay',     inputName: 'CharaCast 多功能overlay' },
+  resonance:   { key: 'resonance',   inputName: 'CharaCast 聲音共鳴' },
+  songqueue:   { key: 'songqueue',   inputName: 'CharaCast 點歌清單' },
+  rebellionBg: { key: 'rebellionBg', inputName: 'CharaCast 叛變背景' },
 };
 // 不再放文字佔位(會爆大疊最上面);場景只建乾淨的 CharaCast overlay,遊戲/鏡頭主播自己加。
 const SCENE_TEMPLATES = {
   game: { name: '遊戲', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
   chat: { name: '聊天', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
   sing: { name: '唱歌', sources: [SCENE_SRC.avatar, SCENE_SRC.resonance, SCENE_SRC.songqueue] },
-  rebellion: { name: '叛變', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },   // AI 叛變橋段:發動時自動切來、平叛切回
+  // AI 叛變橋段:發動時自動切來、平叛切回。rebellionBg 放陣列最前 → 建場景時最先建 = z 序最底層(背景),小夏立繪/overlay 疊在上面
+  rebellion: { name: '叛變', sources: [SCENE_SRC.rebellionBg, SCENE_SRC.avatar, SCENE_SRC.overlay] },
 };
 ipcMain.handle('obs:setup-scenes', async (_e, opts) => {
   try {
@@ -409,6 +411,13 @@ app.whenReady().then(() => {
   vts.on('status', broadcastStatus);
 
   // 串接 relay
+  // 情緒 → VTS 表情(emotion 對應主播在設定填的 hotkey 名稱);TTS 跟「叛變變兇」共用
+  const applyEmotion = (emotion) => {
+    if (!emotion) return;
+    const map = (settings.get('vts') || {}).emotions || {};
+    const hotkey = map[emotion] || map.neutral;
+    if (hotkey) vts.triggerExpression(hotkey);
+  };
   relay = new Relay({
     obs, cloud, onLog: pushLog,
     onTts: (msg) => {
@@ -416,13 +425,10 @@ app.whenReady().then(() => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('tts', msg);
       }
-      // AI 情緒 → VTS 表情(emotion 對應主播設定的 hotkey 名稱)
-      if (msg?.emotion) {
-        const map = (settings.get('vts') || {}).emotions || {};
-        const hotkey = map[msg.emotion] || map.neutral;
-        if (hotkey) vts.triggerExpression(hotkey);
-      }
+      applyEmotion(msg?.emotion);   // AI 情緒 → VTS 表情
     },
+    // 叛變 start/end:雲端送 vts.expression(rebel / neutral)→ 立繪變兇 / 還原
+    onVtsExpression: (emotion) => applyEmotion(emotion),
   });
   relay.start();
 

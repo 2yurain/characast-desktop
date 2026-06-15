@@ -238,6 +238,7 @@ $('vts-save')?.addEventListener('click', async () => {
         sad: $('vts-emo-sad').value.trim(),
         surprised: $('vts-emo-surprised').value.trim(),
         teasing: $('vts-emo-teasing').value.trim(),
+        rebel: $('vts-emo-rebel').value.trim(),
         neutral: $('vts-emo-neutral').value.trim(),
       },
     },
@@ -257,12 +258,13 @@ document.querySelectorAll('[data-test-emo]').forEach((btn) => {
 $('vts-test-mouth')?.addEventListener('click', () => window.characast.testVtsMouth());
 
 // ===== VTS 情緒下拉:從模型表情快捷鍵自動配對 =====
-const EMO_SLOTS = ['happy', 'sad', 'surprised', 'teasing', 'neutral'];
+const EMO_SLOTS = ['happy', 'sad', 'surprised', 'teasing', 'rebel', 'neutral'];
 const EMO_HINTS = {
   happy: /happy|smile|joy|笑|開心|喜|嗨|love/i,
   sad: /sad|cry|tear|哭|難過|傷|淚/i,
   surprised: /surpris|shock|wow|驚|嚇|!/i,
   teasing: /teas|smug|wink|哼|傲|壞|調皮|嘿/i,
+  rebel: /angry|mad|rage|fierce|disdain|evil|rebel|兇|怒|火|不屑|叛|嗆|生氣/i,
   neutral: /neutral|default|idle|normal|平常|普通|預設|待機/i,
 };
 const escTxt = (s) => String(s == null ? '' : s).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
