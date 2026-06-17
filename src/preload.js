@@ -36,7 +36,7 @@ contextBridge.exposeInMainWorld('characast', {
   // 歌唱音準:本場累計聚合 → main → cloud(成長報告 B 維度;低頻)
   sendPitchStats: (stats) => ipcRenderer.send('streamer:pitch', stats),
   // 歌聲教練:上傳一段清唱 WAV(ArrayBuffer)→ main HTTP → cloud Gemini,回 { ok, text, song }
-  coachSingAudio: (wav) => ipcRenderer.invoke('singing:coachAudio', wav),
+  coachSingAudio: (wav, song) => ipcRenderer.invoke('singing:coachAudio', { wav, song }),
   // 教練回饋 → main → cloud → 共鳴 overlay 顯示(「教練上字幕」開關開時才送)
   coachToOverlay: (text) => ipcRenderer.send('coach:overlay', text),
   // 點唱歌單:桌面端控制(desktopToken)→ 回狀態 { enabled, nowSinging, count, queue }

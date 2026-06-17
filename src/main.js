@@ -258,7 +258,9 @@ ipcMain.on('coach:overlay', (_e, text) => {
   cloud.send({ type: 'coach.feedback', text: t.slice(0, 600) });
 });
 // 歌聲教練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
-ipcMain.handle('singing:coachAudio', async (_e, wavBuf) => {
+ipcMain.handle('singing:coachAudio', async (_e, payload) => {
+  const wavBuf = payload && payload.wav ? payload.wav : payload;   // 相容舊呼叫(直接傳 buffer)
+  const song = (payload && typeof payload.song === 'string') ? payload.song.trim() : '';
   const token = settings.get('desktopToken');
   const httpsUrl = settings.get('cloudHttpsUrl');
   const chk = settings.validateCloudUrl(httpsUrl, { kind: 'https' });
@@ -266,7 +268,8 @@ ipcMain.handle('singing:coachAudio', async (_e, wavBuf) => {
   if (!chk.ok) return { ok: false, error: 'cloud 位址不合法' };
   if (!wavBuf || !wavBuf.byteLength) return { ok: false, error: '沒有錄到聲音' };
   try {
-    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/singing-coach`, {
+    const qs = song ? `?song=${encodeURIComponent(song.slice(0, 60))}` : '';
+    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/singing-coach${qs}`, {
       method: 'POST',
       headers: { 'Content-Type': 'audio/wav', 'x-desktop-token': token },
       body: Buffer.from(wavBuf),

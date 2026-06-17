@@ -751,7 +751,7 @@ async function _singCoachStop() {
   setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
   try {
     const wav = _encodeWav16k(rec.chunks, rec.srcRate);
-    const r = await window.characast.coachSingAudio(wav);
+    const r = await window.characast.coachSingAudio(wav, ($('coach-song')?.value || '').trim());
     const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌聲教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再試一次', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》(${_mmss(secs)})` : `✓ 回饋來了(${_mmss(secs)})`);
