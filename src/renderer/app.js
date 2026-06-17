@@ -650,8 +650,8 @@ function resoStop() {
 // =====================================================
 // 🎙️ AI 歌聲教練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
 // =====================================================
-const SINGCOACH_SECONDS = 30, SINGCOACH_TARGET_SR = 16000;
-let _singCoachBusy = false;
+const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 120, SINGCOACH_MIN_SECONDS = 4;
+let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
 
 // Float32 chunks(任意 sr)→ 16k mono → WAV ArrayBuffer
 function _encodeWav16k(chunks, srcRate) {
@@ -681,12 +681,17 @@ function _encodeWav16k(chunks, srcRate) {
 
 function setSingCoachHint(msg) { const h = $('singcoach-hint'); if (h) { h.textContent = msg; h.style.display = msg ? '' : 'none'; } }
 
-async function singCoachRecord() {
-  if (_singCoachBusy) return;
-  _singCoachBusy = true;
+const _mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+// 按鈕:沒在錄 → 開始;錄音中 → 停止並送出
+function singCoachToggle() {
+  if (_singRec) _singCoachStop();
+  else _singCoachStart();
+}
+
+async function _singCoachStart() {
   const btn = $('singcoach-btn'), result = $('singcoach-result');
   if (result) result.style.display = 'none';
-  if (btn) btn.disabled = true;
   let stream, ctx;
   try {
     const deviceId = $('mic-device')?.value || '';
@@ -701,27 +706,51 @@ async function singCoachRecord() {
     const chunks = [];
     proc.onaudioprocess = (ev) => { chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
     src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
-    // 30 秒倒數
-    for (let s = SINGCOACH_SECONDS; s > 0; s--) { setSingCoachHint(`🔴 錄音中…唱吧!還有 ${s} 秒`); await new Promise((r) => setTimeout(r, 1000)); }
-    proc.disconnect(); src.disconnect(); try { stream.getTracks().forEach((t) => t.stop()); } catch {}
-    const sr = ctx.sampleRate; await ctx.close().catch(() => {}); ctx = null; stream = null;
-    setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
-    const wav = _encodeWav16k(chunks, sr);
+    _singRec = { ctx, stream, src, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null };
+    if (btn) btn.textContent = '⏹ 停止並送出';
+    _singRec.tick = setInterval(() => {
+      const s = Math.floor((Date.now() - _singRec.t0) / 1000);
+      setSingCoachHint(`🔴 錄音中… ${_mmss(s)} —— 唱到想停就按「停止並送出」(上限 ${_mmss(SINGCOACH_MAX_SECONDS)})`);
+      if (s >= SINGCOACH_MAX_SECONDS) _singCoachStop();   // 到上限自動停
+    }, 500);
+  } catch (e) {
+    setSingCoachHint('✗ 錄音失敗:' + (e.message || e));
+    try { if (stream) stream.getTracks().forEach((t) => t.stop()); } catch {}
+    try { if (ctx) await ctx.close(); } catch {}
+    _singRec = null;
+  }
+}
+
+async function _singCoachStop() {
+  const rec = _singRec; if (!rec) return;
+  _singRec = null;
+  const btn = $('singcoach-btn'), result = $('singcoach-result');
+  if (rec.tick) clearInterval(rec.tick);
+  try { rec.proc.disconnect(); rec.src.disconnect(); } catch {}
+  try { rec.stream.getTracks().forEach((t) => t.stop()); } catch {}
+  try { await rec.ctx.close(); } catch {}
+  const secs = Math.round((Date.now() - rec.t0) / 1000);
+  if (secs < SINGCOACH_MIN_SECONDS) {
+    setSingCoachHint(`✗ 太短了(只 ${secs}s),多唱幾句再停`);
+    if (btn) btn.textContent = '🎙️ 錄一段唱給 AI 聽';
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '🎙️ 錄一段唱給 AI 聽'; }
+  setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
+  try {
+    const wav = _encodeWav16k(rec.chunks, rec.srcRate);
     const r = await window.characast.coachSingAudio(wav);
     const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌聲教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再試一次', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
-      setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
+      setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》(${_mmss(secs)})` : `✓ 回饋來了(${_mmss(secs)})`);
       if (result) { result.textContent = '🎙️ ' + r.text; result.style.display = ''; }
     } else {
       setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋'));
     }
   } catch (e) {
-    setSingCoachHint('✗ 錄音失敗:' + (e.message || e));
+    setSingCoachHint('✗ 上傳失敗:' + (e.message || e));
   } finally {
-    try { if (ctx) await ctx.close(); } catch {}
-    try { if (stream) stream.getTracks().forEach((t) => t.stop()); } catch {}
     if (btn) btn.disabled = false;
-    _singCoachBusy = false;
   }
 }
 
@@ -750,7 +779,7 @@ function setResoEnabled(on) {
 
 $('reso-enabled')?.addEventListener('change', (e) => setResoEnabled(e.target.checked));
 $('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?.checked));
-$('singcoach-btn')?.addEventListener('click', singCoachRecord);
+$('singcoach-btn')?.addEventListener('click', singCoachToggle);
 // 換共用麥克風 → 存起來,並重啟正在跑的服務(共鳴 + STT)讓它們改吃新麥
 $('mic-device')?.addEventListener('change', async () => {
   await persistMic();
