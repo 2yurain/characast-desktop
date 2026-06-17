@@ -165,6 +165,9 @@ async function fillSettingsForm() {
   paintQuick('qt-vision', '🖼️ 看畫面', _visLocalOn);
   _visProfiles = (s.visionProfiles && typeof s.visionProfiles === 'object') ? s.visionProfiles : {};
   _visHud = (s.visionHud && typeof s.visionHud === 'object') ? s.visionHud : {};
+  // 🎙️ 教練上字幕:還原(無設定 → 預設關,因為會顯示在直播畫面上)
+  _coachOverlayOn = s.coachOverlay ? Boolean(s.coachOverlay.enabled) : false;
+  paintQuick('qt-coach', '🎙️ 教練上字幕', _coachOverlayOn);
   updateCalUI();
 
   // 帳號 tab:顯示「已配對」狀態
@@ -652,6 +655,7 @@ function resoStop() {
 // =====================================================
 const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 120, SINGCOACH_MIN_SECONDS = 4;
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
+let _coachOverlayOn = false;   // 「教練上字幕」:開 → 教練回饋推到共鳴 overlay 顯示
 
 // Float32 chunks(任意 sr)→ 16k mono → WAV ArrayBuffer
 function _encodeWav16k(chunks, srcRate) {
@@ -744,6 +748,7 @@ async function _singCoachStop() {
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》(${_mmss(secs)})` : `✓ 回饋來了(${_mmss(secs)})`);
       if (result) { result.textContent = '🎙️ ' + r.text; result.style.display = ''; }
+      if (_coachOverlayOn) window.characast.coachToOverlay?.(r.text);   // 開了「教練上字幕」→ 推到共鳴 overlay
     } else {
       setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋'));
     }
@@ -780,6 +785,13 @@ function setResoEnabled(on) {
 $('reso-enabled')?.addEventListener('change', (e) => setResoEnabled(e.target.checked));
 $('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?.checked));
 $('singcoach-btn')?.addEventListener('click', singCoachToggle);
+// 🎙️ 教練上字幕快速開關:開 → 教練回饋推到共鳴 overlay
+function setCoachOverlayOn(on) {
+  _coachOverlayOn = Boolean(on);
+  paintQuick('qt-coach', '🎙️ 教練上字幕', _coachOverlayOn);
+  window.characast.setSettings({ coachOverlay: { enabled: _coachOverlayOn } });
+}
+$('qt-coach')?.addEventListener('click', () => setCoachOverlayOn(!_coachOverlayOn));
 // 換共用麥克風 → 存起來,並重啟正在跑的服務(共鳴 + STT)讓它們改吃新麥
 $('mic-device')?.addEventListener('change', async () => {
   await persistMic();
