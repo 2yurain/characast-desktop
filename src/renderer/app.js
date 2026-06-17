@@ -479,35 +479,59 @@ $('tts-test')?.addEventListener('click', () => {
 let _resoStream = null, _resoCtx = null, _resoTimer = null;
 let _resoEnergy = 0, _resoFreq = 0, _resoCentroid = 0;   // centroid = 共鳴明亮度(胸→頭)
 
-// 歌唱音準累計(成長報告 B 維度)— resonance 開啟期間累計,定期 + 停止時 flush 給 cloud。
-let _pitchN = 0, _pitchVoiced = 0, _pitchF0Sum = 0, _pitchF0Min = 0, _pitchF0Max = 0, _pitchStable = 0, _pitchPrevF0 = 0, _pitchFlushTimer = null;
-function pitchReset() { _pitchN = 0; _pitchVoiced = 0; _pitchF0Sum = 0; _pitchF0Min = 0; _pitchF0Max = 0; _pitchStable = 0; _pitchPrevF0 = 0; }
-function pitchAccumulate(f0) {
+// 歌唱音準累計(成長報告 B 維度)— resonance 開啟期間累計,每窗 flush 給 cloud,flush 後歸零。
+// 抗噪三招:① 人聲帶 70–600Hz ② 對近期中位數做八度折回(殺自相關常見的半/倍頻誤判)
+//          ③ 半音直方圖取百分位(p10/中位/p90)取代原始 min/max/avg → 不被單一爛 frame 撐爆。
+// ⚠ 每窗 flush 後歸零(per-window),不再跨整場累積 —— 否則每首歌都會吃到同一組極值,看起來一模一樣。
+const F0_BAND_MIN = 70, F0_BAND_MAX = 600;    // 歌唱人聲帶(含男女 + 假音餘裕);帶外視為八度誤判 / 雜訊
+let _pitchN = 0, _pitchVoiced = 0, _pitchStable = 0, _pitchPrevF0 = 0, _pitchFlushTimer = null;
+let _pitchHist = new Map();      // 半音直方圖:midi note -> 次數
+let _pitchRecent = [];           // 近 ~2s 的 f0,作八度折回的參考中位數
+function pitchReset() { _pitchN = 0; _pitchVoiced = 0; _pitchStable = 0; _pitchPrevF0 = 0; _pitchHist = new Map(); _pitchRecent = []; }
+function _median(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+function pitchAccumulate(f0raw) {
   _pitchN++;
-  if (f0 > 0) {
-    _pitchVoiced++;
-    _pitchF0Sum += f0;
-    _pitchF0Min = _pitchF0Min ? Math.min(_pitchF0Min, f0) : f0;
-    _pitchF0Max = Math.max(_pitchF0Max, f0);
-    // 跟前一幀差 < 50 cents(半個半音內)算「穩」→ 粗略音準穩定度
-    if (_pitchPrevF0 > 0 && Math.abs(1200 * Math.log2(f0 / _pitchPrevF0)) < 50) _pitchStable++;
-    _pitchPrevF0 = f0;
-  } else {
-    _pitchPrevF0 = 0;
+  if (!(f0raw > 0)) { _pitchPrevF0 = 0; return; }
+  let f0 = f0raw;
+  // 八度折回:跟近期中位數差約一個八度 → 折回(autocorr 常把基頻抓成半頻 / 倍頻)
+  if (_pitchRecent.length >= 5) {
+    const med = _median(_pitchRecent);
+    if (med > 0) { while (f0 / med > 1.6) f0 /= 2; while (med / f0 > 1.6) f0 *= 2; }
   }
+  if (f0 < F0_BAND_MIN || f0 > F0_BAND_MAX) { _pitchPrevF0 = 0; return; }  // 帶外 → 斷穩定鏈、不計
+  _pitchVoiced++;
+  const midi = Math.round(69 + 12 * Math.log2(f0 / 440));
+  _pitchHist.set(midi, (_pitchHist.get(midi) || 0) + 1);
+  // 跟前一幀差 < 50 cents(半個半音內)算「穩」→ 粗略音準穩定度
+  if (_pitchPrevF0 > 0 && Math.abs(1200 * Math.log2(f0 / _pitchPrevF0)) < 50) _pitchStable++;
+  _pitchPrevF0 = f0;
+  _pitchRecent.push(f0); if (_pitchRecent.length > 40) _pitchRecent.shift();   // 50ms × 40 ≈ 近 2s
+}
+function _histHz(p) {   // 直方圖第 p 百分位 → Hz
+  const notes = [..._pitchHist.keys()].sort((a, b) => a - b);
+  if (!notes.length) return 0;
+  let cum = 0; const target = _pitchVoiced * p;
+  for (const n of notes) { cum += _pitchHist.get(n); if (cum >= target) return 440 * Math.pow(2, (n - 69) / 12); }
+  return 440 * Math.pow(2, (notes[notes.length - 1] - 69) / 12);
 }
 function pitchFlush() {
-  if (_pitchVoiced < 20) return;   // 樣本太少不送(避免雜訊)
-  try {
-    window.characast.sendPitchStats?.({
-      samples: _pitchVoiced,
-      f0Avg: Math.round(_pitchF0Sum / _pitchVoiced),
-      f0Min: Math.round(_pitchF0Min || 0),
-      f0Max: Math.round(_pitchF0Max),
-      voicedRatio: +(_pitchVoiced / Math.max(1, _pitchN)).toFixed(3),
-      stableRatio: +(_pitchStable / Math.max(1, _pitchVoiced)).toFixed(3),
-    });
-  } catch {}
+  if (_pitchVoiced >= 20 && _pitchHist.size) {   // 樣本太少不送(避免雜訊)
+    try {
+      window.characast.sendPitchStats?.({
+        samples: _pitchVoiced,
+        f0Avg: Math.round(_histHz(0.50)),   // 中位數(抗離群),非算術平均
+        f0Min: Math.round(_histHz(0.10)),   // 音域下緣 = p10(不取絕對最低,避免雜訊撐爆)
+        f0Max: Math.round(_histHz(0.90)),   // 音域上緣 = p90
+        voicedRatio: +(_pitchVoiced / Math.max(1, _pitchN)).toFixed(3),
+        stableRatio: +(_pitchStable / Math.max(1, _pitchVoiced)).toFixed(3),
+      });
+    } catch {}
+  }
+  pitchReset();   // 每窗送完歸零 → 下一窗只代表那段,讓 cloud 正確歸給「當下那首歌」
 }
 
 const RESO_NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -534,6 +558,9 @@ function resoDetectPitch(buf, sampleRate) {
   let maxval = -1, maxpos = -1;
   for (let i = d; i < n; i++) { if (c[i] > maxval) { maxval = c[i]; maxpos = i; } }
   if (maxpos <= 0) return -1;
+  // 信心度:peak 相對零延遲能量(c[0])太低 → 視為無清晰音高(氣音 / 雜訊),不誤當有音
+  // 清晰人聲通常 >0.6;雜訊 <0.3。門檻保守取 0.4(太高會把真唱歌也丟掉、樣本不足)。
+  if (!(c[0] > 0) || maxval / c[0] < 0.4) return -1;
   let T0 = maxpos;
   const x1 = c[T0 - 1] || 0, x2 = c[T0], x3 = c[T0 + 1] || 0;
   const a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
