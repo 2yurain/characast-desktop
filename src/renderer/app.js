@@ -684,6 +684,14 @@ function _encodeWav16k(chunks, srcRate) {
 }
 
 function setSingCoachHint(msg) { const h = $('singcoach-hint'); if (h) { h.textContent = msg; h.style.display = msg ? '' : 'none'; } }
+// 唱歌分頁的錄音鈕 + 控制中心的「錄唱給 AI」兩顆同步(文字 / 禁用)
+function _setSingBtns(txt, disabled) {
+  for (const id of ['singcoach-btn', 'qt-coachrec']) {
+    const b = $(id); if (!b) continue;
+    if (txt != null) b.textContent = txt;
+    if (disabled != null) b.disabled = disabled;
+  }
+}
 
 const _mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -711,7 +719,7 @@ async function _singCoachStart() {
     proc.onaudioprocess = (ev) => { chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
     src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
     _singRec = { ctx, stream, src, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null };
-    if (btn) btn.textContent = '⏹ 停止並送出';
+    _setSingBtns('⏹ 停止並送出', false);
     _singRec.tick = setInterval(() => {
       const s = Math.floor((Date.now() - _singRec.t0) / 1000);
       setSingCoachHint(`🔴 錄音中… ${_mmss(s)} —— 唱到想停就按「停止並送出」(上限 ${_mmss(SINGCOACH_MAX_SECONDS)})`);
@@ -736,10 +744,10 @@ async function _singCoachStop() {
   const secs = Math.round((Date.now() - rec.t0) / 1000);
   if (secs < SINGCOACH_MIN_SECONDS) {
     setSingCoachHint(`✗ 太短了(只 ${secs}s),多唱幾句再停`);
-    if (btn) btn.textContent = '🎙️ 錄一段唱給 AI 聽';
+    _setSingBtns('🎙️ 錄一段唱給 AI 聽', false);
     return;
   }
-  if (btn) { btn.disabled = true; btn.textContent = '🎙️ 錄一段唱給 AI 聽'; }
+  _setSingBtns('🎙️ 錄一段唱給 AI 聽', true);
   setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
   try {
     const wav = _encodeWav16k(rec.chunks, rec.srcRate);
@@ -755,7 +763,7 @@ async function _singCoachStop() {
   } catch (e) {
     setSingCoachHint('✗ 上傳失敗:' + (e.message || e));
   } finally {
-    if (btn) btn.disabled = false;
+    _setSingBtns(null, false);
   }
 }
 
@@ -792,6 +800,38 @@ function setCoachOverlayOn(on) {
   window.characast.setSettings({ coachOverlay: { enabled: _coachOverlayOn } });
 }
 $('qt-coach')?.addEventListener('click', () => setCoachOverlayOn(!_coachOverlayOn));
+// 控制中心快速「錄唱給 AI」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
+$('qt-coachrec')?.addEventListener('click', singCoachToggle);
+
+// 🎵 點唱歌單(桌面端控制 desktopToken;在「唱歌」分頁刷新)
+let _sqEnabled = true;
+function renderSq(s) {
+  const st = $('sq-status'), list = $('sq-list'), tg = $('sq-toggle');
+  if (!st) return;
+  if (!s || s.error) {
+    st.textContent = (s && /Pro/.test(s.error || '')) ? '點唱需 Pro 以上方案' : ('讀取失敗:' + ((s && s.error) || '未連線'));
+    if (list) list.innerHTML = '';
+    return;
+  }
+  _sqEnabled = s.enabled !== false;
+  const now = s.nowSinging ? `🎤 唱:${s.nowSinging.song}(${s.nowSinging.requester || ''})` : '目前沒在唱';
+  st.textContent = `${_sqEnabled ? '🟢 開放中' : '🔴 已關'} · ${now} · 待唱 ${s.count || 0} 首`;
+  if (tg) tg.textContent = _sqEnabled ? '🔴 關閉點唱' : '🟢 開放點唱';
+  if (list) {
+    list.innerHTML = (s.queue || []).slice(0, 10).map((e) =>
+      `${e.pos}. ${escTxt(e.song)} <span style="color:var(--muted,#888)">· ${escTxt(e.requester || '')}</span>`).join('<br>') || '<span class="hint">目前沒有待唱</span>';
+  }
+}
+async function loadSq() { try { renderSq(await window.characast.songQueueGet()); } catch (e) { renderSq({ error: e.message }); } }
+async function sqAction(action) { try { renderSq(await window.characast.songQueueAction(action)); } catch (e) { renderSq({ error: e.message }); } }
+$('sq-refresh')?.addEventListener('click', loadSq);
+$('sq-toggle')?.addEventListener('click', () => sqAction(_sqEnabled ? 'disable' : 'enable'));
+$('sq-next')?.addEventListener('click', () => sqAction('next'));
+$('sq-skip')?.addEventListener('click', () => sqAction('skip'));
+$('sq-clear')?.addEventListener('click', () => { if (confirm('清空整個待唱歌單?')) sqAction('clearAll'); });
+document.querySelector('.tab-btn[data-tab="sing"]')?.addEventListener('click', loadSq);
+// 在「唱歌」分頁時每 5s 自動刷新(其他分頁不打 cloud)
+setInterval(() => { const p = document.querySelector('.tab-pane[data-tab="sing"]'); if (p && p.classList.contains('active')) loadSq(); }, 5000);
 // 換共用麥克風 → 存起來,並重啟正在跑的服務(共鳴 + STT)讓它們改吃新麥
 $('mic-device')?.addEventListener('change', async () => {
   await persistMic();

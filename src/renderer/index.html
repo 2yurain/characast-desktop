@@ -62,6 +62,7 @@
       <div style="font-size:12px;color:var(--muted,#888);margin-bottom:6px">⚡ 快速開關</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button type="button" id="qt-reso" class="quick-toggle"></button>
+        <button type="button" id="qt-coachrec" class="quick-toggle">🎙️ 錄唱給 AI</button>
         <button type="button" id="qt-coach" class="quick-toggle"></button>
         <button type="button" id="qt-stt" class="quick-toggle"></button>
         <button type="button" id="qt-vision" class="quick-toggle"></button>
@@ -127,6 +128,21 @@
 
     <!-- Tab: 唱歌(麥克風 + 歌聲共鳴 + AI 歌聲教練)-->
     <div class="tab-pane" data-tab="sing">
+      <!-- 🎵 點唱歌單:觀眾點的歌(desktopToken 控制,同後台 /me/songqueue)-->
+      <div class="howto">
+        <div class="howto-title">🎵 點唱歌單</div>
+        <p class="howto-note" style="margin-bottom:8px">觀眾 <code>!點唱 歌名</code> / 兌換點數 → 進這條;在這直接控制,不用開後台</p>
+        <div class="hint" id="sq-status" style="margin:0 0 10px">載入中…</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" id="sq-toggle" class="ghost">開放 / 關閉</button>
+          <button type="button" id="sq-next">🎤 下一首</button>
+          <button type="button" id="sq-skip" class="ghost">跳過</button>
+          <button type="button" id="sq-clear" class="ghost" style="color:#ff7a7a;border-color:#553030">🗑 清空</button>
+          <button type="button" id="sq-refresh" class="ghost">↻</button>
+        </div>
+        <div id="sq-list" style="margin-top:10px;font-size:13px;line-height:1.9;color:var(--text,#eee)"></div>
+      </div>
+
       <!-- 🎤 麥克風(共用輸入):先選一支,共鳴 / 教練 / 進階的聽覺都吃它 -->
       <div class="howto">
         <div class="howto-title">🎤 麥克風裝置(共用)</div>

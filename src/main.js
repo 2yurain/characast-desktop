@@ -230,6 +230,27 @@ ipcMain.on('streamer:pitch', (_e, stats) => {
   if (!stats || typeof stats !== 'object' || !cloud.isConnected()) return;
   cloud.send({ type: 'streamer.pitch', stats });
 });
+// 點唱歌單:桌面端用 desktopToken 控制(GET 狀態 / POST 動作)
+async function _songQueueReq(method, body) {
+  const token = settings.get('desktopToken');
+  const httpsUrl = settings.get('cloudHttpsUrl');
+  const chk = settings.validateCloudUrl(httpsUrl, { kind: 'https' });
+  if (!token) return { error: '尚未配對' };
+  if (!chk.ok) return { error: 'cloud 位址不合法' };
+  try {
+    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/songqueue`, {
+      method,
+      headers: { 'Content-Type': 'application/json', 'x-desktop-token': token },
+      body: method === 'POST' ? JSON.stringify(body || {}) : undefined,
+    });
+    const j = await res.json();
+    if (!res.ok) return { error: j.error || `HTTP ${res.status}` };
+    return j;
+  } catch (e) { return { error: e.message }; }
+}
+ipcMain.handle('songqueue:get', () => _songQueueReq('GET'));
+ipcMain.handle('songqueue:action', (_e, action) => _songQueueReq('POST', { action: String(action || '') }));
+
 // 教練回饋 → 轉給 cloud → 共鳴 overlay 顯示(「教練上字幕」開關開時 renderer 才送來;沒連上就丟棄)
 ipcMain.on('coach:overlay', (_e, text) => {
   const t = String(text || '').trim();

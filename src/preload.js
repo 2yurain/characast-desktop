@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('characast', {
   coachSingAudio: (wav) => ipcRenderer.invoke('singing:coachAudio', wav),
   // 教練回饋 → main → cloud → 共鳴 overlay 顯示(「教練上字幕」開關開時才送)
   coachToOverlay: (text) => ipcRenderer.send('coach:overlay', text),
+  // 點唱歌單:桌面端控制(desktopToken)→ 回狀態 { enabled, nowSinging, count, queue }
+  songQueueGet: () => ipcRenderer.invoke('songqueue:get'),
+  songQueueAction: (action) => ipcRenderer.invoke('songqueue:action', action),
   // Vision:跟 main 要 OBS 目前畫面縮圖(base64);CLIP 看完的短描述 → main → cloud
   getObsScreenshot: (opts) => ipcRenderer.invoke('obs:screenshot', opts),
   sendStreamerVision: (text) => ipcRenderer.send('streamer:vision', text),
