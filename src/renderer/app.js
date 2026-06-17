@@ -684,7 +684,7 @@ function _encodeWav16k(chunks, srcRate) {
 }
 
 function setSingCoachHint(msg) { const h = $('singcoach-hint'); if (h) { h.textContent = msg; h.style.display = msg ? '' : 'none'; } }
-// 唱歌分頁的錄音鈕 + 控制中心的「錄唱給 AI」兩顆同步(文字 / 禁用)
+// 唱歌分頁的錄音鈕 + 控制中心的「唱歌教練」兩顆同步(文字 / 禁用)
 function _setSingBtns(txt, disabled) {
   for (const id of ['singcoach-btn', 'qt-coachrec']) {
     const b = $(id); if (!b) continue;
@@ -744,10 +744,10 @@ async function _singCoachStop() {
   const secs = Math.round((Date.now() - rec.t0) / 1000);
   if (secs < SINGCOACH_MIN_SECONDS) {
     setSingCoachHint(`✗ 太短了(只 ${secs}s),多唱幾句再停`);
-    _setSingBtns('🎙️ 錄一段唱給 AI 聽', false);
+    _setSingBtns('🎙️ 唱歌教練', false);
     return;
   }
-  _setSingBtns('🎙️ 錄一段唱給 AI 聽', true);
+  _setSingBtns('🎙️ 唱歌教練', true);
   setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
   try {
     const wav = _encodeWav16k(rec.chunks, rec.srcRate);
@@ -800,7 +800,7 @@ function setCoachOverlayOn(on) {
   window.characast.setSettings({ coachOverlay: { enabled: _coachOverlayOn } });
 }
 $('qt-coach')?.addEventListener('click', () => setCoachOverlayOn(!_coachOverlayOn));
-// 控制中心快速「錄唱給 AI」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
+// 控制中心快速「唱歌教練」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
 $('qt-coachrec')?.addEventListener('click', singCoachToggle);
 
 // 🎵 點唱歌單(桌面端控制 desktopToken;在「唱歌」分頁刷新)
