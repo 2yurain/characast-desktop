@@ -845,7 +845,8 @@ document.addEventListener('click', () => { if (_resoCtx && _resoCtx.state === 's
 // 後台開「聽得到主播」後,這台用 GPU 本地辨識麥克風,每 ~15s 轉一段 → 只送短文字當脈絡上雲。
 // 重活全在桌面端(邊緣),雲端不爆;聲音本機處理,不傳音檔、不存逐字稿。
 // transformers.js 從 jsdelivr 載、模型從 HuggingFace 下載(首次)→ CSP 已放行這兩個來源。
-const STT_MODELS = { low: 'Xenova/whisper-tiny', medium: 'Xenova/whisper-base', high: 'Xenova/whisper-small' };
+// 整體往上一級提升準度:低=base、中=small、高=large-v3-turbo(近 large 準度、turbo 速度;RTX 等級才建議)
+const STT_MODELS = { low: 'Xenova/whisper-base', medium: 'Xenova/whisper-small', high: 'onnx-community/whisper-large-v3-turbo' };
 const STT_MIN_SAMPLES = 6_400;     // < 0.4s 的零碎聲不轉
 // VAD(語音活動偵測):偵測到說話才累積,靜下來一段才送辨識 → 省 GPU、句子不被硬切
 const VAD_ON_RMS = 0.015;          // 音量超過這個 = 開始說話
