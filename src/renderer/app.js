@@ -847,6 +847,19 @@ document.addEventListener('click', () => { if (_resoCtx && _resoCtx.state === 's
 // transformers.js 從 jsdelivr 載、模型從 HuggingFace 下載(首次)→ CSP 已放行這兩個來源。
 // 整體往上一級提升準度:低=base、中=small、高=large-v3-turbo(近 large 準度、turbo 速度;RTX 等級才建議)
 const STT_MODELS = { low: 'Xenova/whisper-base', medium: 'Xenova/whisper-small', high: 'onnx-community/whisper-large-v3-turbo' };
+
+// whisper 中文偏簡體 → 轉繁(zh-TW 產品 + 工具關鍵字是繁體,字對上判斷才準)。懶載 opencc,失敗就維持原樣。
+let _s2tConv = null, _s2tTried = false;
+async function ensureS2T() {
+  if (_s2tConv || _s2tTried) return _s2tConv;
+  _s2tTried = true;
+  try {
+    const OpenCC = await import('https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/+esm');
+    _s2tConv = OpenCC.Converter({ from: 'cn', to: 'tw' });
+    appendLog({ level: 'info', msg: 'STT:簡轉繁(opencc)就緒' });
+  } catch (e) { appendLog({ level: 'warn', msg: 'STT:簡轉繁載入失敗,維持原樣(' + e.message + ')' }); _s2tConv = null; }
+  return _s2tConv;
+}
 const STT_MIN_SAMPLES = 6_400;     // < 0.4s 的零碎聲不轉
 // VAD(語音活動偵測):偵測到說話才累積,靜下來一段才送辨識 → 省 GPU、句子不被硬切
 const VAD_ON_RMS = 0.015;          // 音量超過這個 = 開始說話
@@ -950,8 +963,11 @@ async function flushStt() {
     const res = await _sttTranscriber(audio, { language: 'zh', task: 'transcribe' });
     const raw = String(res?.text || '').trim();
     // ① 去掉 whisper 的非語音註記:(咳)(笑)（音樂）[掌聲]【字幕】… 括號內容
-    const text = raw.replace(/[（(【\[][^）)】\]]*[）)】\]]/g, '')
-                    .replace(/[\s,，、。.!?！?~…]+$/u, '').trim();
+    let text = raw.replace(/[（(【\[][^）)】\]]*[）)】\]]/g, '')
+                  .replace(/[\s,，、。.!?！?~…]+$/u, '').trim();
+    // ①.5 簡轉繁(在幻覺過濾前轉 → HALLUC 繁體規則才對得上)
+    const conv = await ensureS2T();
+    if (conv && text) { try { text = conv(text); } catch { /* 轉換失敗維持原樣 */ } }
     // ② 幻覺/雜訊過濾:剩太短、沒有任何中英數(純標點)、或 whisper 固定幻覺句 → 丟
     const HALLUC = /^(字幕|請不吝|謝謝(大家)?(觀看|收看)|不吝點贊|請訂閱|下次再見|MING|by )/;
     const hasWord = /[一-鿿a-zA-Z0-9]/.test(text);
