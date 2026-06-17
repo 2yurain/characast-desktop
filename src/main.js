@@ -230,6 +230,29 @@ ipcMain.on('streamer:pitch', (_e, stats) => {
   if (!stats || typeof stats !== 'object' || !cloud.isConnected()) return;
   cloud.send({ type: 'streamer.pitch', stats });
 });
+// 歌聲教練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
+ipcMain.handle('singing:coachAudio', async (_e, wavBuf) => {
+  const token = settings.get('desktopToken');
+  const httpsUrl = settings.get('cloudHttpsUrl');
+  const chk = settings.validateCloudUrl(httpsUrl, { kind: 'https' });
+  if (!token) return { ok: false, error: '尚未配對' };
+  if (!chk.ok) return { ok: false, error: 'cloud 位址不合法' };
+  if (!wavBuf || !wavBuf.byteLength) return { ok: false, error: '沒有錄到聲音' };
+  try {
+    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/singing-coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav', 'x-desktop-token': token },
+      body: Buffer.from(wavBuf),
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    pushLog({ level: 'info', msg: `歌聲教練:上傳 ${Math.round((wavBuf.byteLength || 0) / 1024)}KB → ${j.ok ? (j.song ? '《' + j.song + '》' : '回饋已產生') : '無回饋(' + (j.reason || '?') + ')'}` });
+    return j;
+  } catch (e) {
+    pushLog({ level: 'err', msg: `歌聲教練上傳失敗:${e.message}` });
+    return { ok: false, error: e.message };
+  }
+});
 // Vision:renderer 要 OBS 目前畫面縮圖(回 base64 data URL 或 null)
 ipcMain.handle('obs:screenshot', async (_e, opts) => {
   try { return await obs.getScreenshot(opts || {}); }

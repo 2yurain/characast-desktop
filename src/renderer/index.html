@@ -141,6 +141,15 @@
         <div class="hint" id="reso-hint" style="margin-top:6px">需 cloud 已連線。開啟後唱歌,OBS 的共鳴 overlay 就會動。</div>
       </div>
 
+      <!-- 🎙️ AI 歌聲教練:錄一段清唱上雲(Gemini 聽)→ 回饋(需 Pro+ 與 cloud 已連線)-->
+      <div class="howto" style="margin-top:18px">
+        <div class="howto-title">🎙️ AI 歌聲教練</div>
+        <p class="howto-note" style="margin-bottom:8px">按下會錄你 30 秒清唱、上傳給 AI 聽 → 回饋(只在你按下才上傳,聽完即丟、不保存音檔)<br>正在唱點唱歌時按 → 回饋會歸到那首,後台卡片也看得到</p>
+        <button type="button" id="singcoach-btn">🎙️ 錄 30 秒唱給 AI 聽</button>
+        <div class="hint" id="singcoach-hint" style="margin-top:6px;display:none"></div>
+        <div id="singcoach-result" style="margin-top:8px;display:none;line-height:1.7;font-size:13px;white-space:pre-wrap;border-top:1px solid rgba(255,255,255,.1);padding-top:8px"></div>
+      </div>
+
       <!-- 🧠 讓 AI 聽你說話(本地 whisper STT,WebGPU)-->
       <div class="howto" style="margin-top:18px">
         <div class="howto-title">🧠 讓 AI 聽你說話(語音辨識)</div>

@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('characast', {
   sendStreamerSpeech: (text) => ipcRenderer.send('streamer:speech', text),
   // 歌唱音準:本場累計聚合 → main → cloud(成長報告 B 維度;低頻)
   sendPitchStats: (stats) => ipcRenderer.send('streamer:pitch', stats),
+  // 歌聲教練:上傳一段清唱 WAV(ArrayBuffer)→ main HTTP → cloud Gemini,回 { ok, text, song }
+  coachSingAudio: (wav) => ipcRenderer.invoke('singing:coachAudio', wav),
   // Vision:跟 main 要 OBS 目前畫面縮圖(base64);CLIP 看完的短描述 → main → cloud
   getObsScreenshot: (opts) => ipcRenderer.invoke('obs:screenshot', opts),
   sendStreamerVision: (text) => ipcRenderer.send('streamer:vision', text),
