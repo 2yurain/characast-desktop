@@ -857,10 +857,8 @@ async function persistMic() {
 // ⚡ 快速開關(控制中心):跟分頁裡的勾選同一個狀態,兩邊互相同步
 function paintQuick(btnId, label, on) {
   const b = $(btnId); if (!b) return;
-  b.innerHTML = `${label}　<b style="color:${on ? '#28dc96' : '#999'}">${on ? '開' : '關'}</b>`;
-  b.style.cssText = 'padding:9px 14px;border-radius:12px;font-size:13px;cursor:pointer;'
-    + 'border:1px solid ' + (on ? 'rgba(40,220,150,.6)' : 'var(--line,#333)') + ';'
-    + 'background:' + (on ? 'rgba(40,220,150,.12)' : 'transparent') + ';color:var(--text,#eee)';
+  b.classList.toggle('on', Boolean(on));   // 樣式走 .quick-toggle / .quick-toggle.on(styles.css)
+  b.innerHTML = `${label}　<b>${on ? '開' : '關'}</b>`;
 }
 // 歌聲共鳴:開關單一入口(分頁勾選 + 快速開關都走這)
 function setResoEnabled(on) {
