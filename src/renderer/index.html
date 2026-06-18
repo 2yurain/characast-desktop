@@ -71,32 +71,12 @@
     <!-- Tabs:OBS / 進階 / 帳號 -->
     <div class="tabs-nav" role="tablist">
       <button class="tab-btn active" data-tab="sing">🎤 唱歌</button>
-      <button class="tab-btn" data-tab="obs">🎬 場景</button>
       <button class="tab-btn" data-tab="vts">🎭 VTuber</button>
       <button class="tab-btn" data-tab="advanced">🧠 進階</button>
       <button class="tab-btn" data-tab="account">⚙️ 設定</button>
     </div>
 
     <div class="tab-scroll">
-    <!-- Tab: OBS -->
-    <div class="tab-pane" data-tab="obs">
-      <p class="howto-note" style="margin:0 0 12px">OBS 連線(Host / Port / 密碼)已移到「⚙️ 設定」分頁。這裡只放建場景。</p>
-      <!-- 🎬 一鍵設置場景:在 OBS 建好「遊戲 / 聊天 / 唱歌」場景 + CharaCast overlay -->
-      <div class="howto" style="margin-top:18px">
-        <div class="howto-title">🎬 一鍵設置場景</div>
-        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">幫你在 OBS 一次建好「遊戲 / 聊天 / 唱歌」三個場景,CharaCast overlay(形象 / 觀眾卡 / 共鳴 / 點歌)自動擺好<br>只會「新增」,同名場景會跳過、不動你現有設定<br>需 OBS 已連線 + 已配對</p></details>
-        <label class="check-row"><input id="scene-game" type="checkbox" checked> <span>🎮 遊戲</span></label>
-        <label class="check-row"><input id="scene-chat" type="checkbox" checked> <span>💬 聊天</span></label>
-        <label class="check-row"><input id="scene-sing" type="checkbox" checked> <span>🎤 唱歌</span></label>
-        <label class="check-row"><input id="scene-rebellion" type="checkbox" checked> <span>😈 叛變(AI 叛變橋段時自動切)</span></label>
-        <div class="form-actions" style="margin-top:10px">
-          <button id="obs-setup-scenes">🎬 一鍵建場景</button>
-        </div>
-        <div class="hint" id="scene-result" style="margin-top:6px"></div>
-      </div>
-
-    </div>
-
     <!-- Tab: 唱歌(每天會用的:點唱 + 唱歌教練 + 麥克風 + 共鳴)-->
     <div class="tab-pane active" data-tab="sing">
       <!-- 🎵 點唱歌單:觀眾點的歌(desktopToken 控制,同後台 /me/songqueue)-->
@@ -243,6 +223,20 @@
         <label>Password</label>
         <input id="obs-password" type="password" placeholder="從 OBS Show Connect Info 複製,沒設可空">
         <div class="form-actions"><button id="obs-save">儲存 + 重連</button></div>
+      </div>
+
+      <!-- 🎬 一鍵設置場景:在 OBS 建好「遊戲 / 聊天 / 唱歌」場景 + CharaCast overlay -->
+      <div class="howto">
+        <div class="howto-title">🎬 一鍵設置場景</div>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">幫你在 OBS 一次建好「遊戲 / 聊天 / 唱歌」三個場景,CharaCast overlay(形象 / 觀眾卡 / 共鳴 / 點歌)自動擺好<br>只會「新增」,同名場景會跳過、不動你現有設定<br>需 OBS 已連線 + 已配對</p></details>
+        <label class="check-row"><input id="scene-game" type="checkbox" checked> <span>🎮 遊戲</span></label>
+        <label class="check-row"><input id="scene-chat" type="checkbox" checked> <span>💬 聊天</span></label>
+        <label class="check-row"><input id="scene-sing" type="checkbox" checked> <span>🎤 唱歌</span></label>
+        <label class="check-row"><input id="scene-rebellion" type="checkbox" checked> <span>😈 叛變(AI 叛變橋段時自動切)</span></label>
+        <div class="form-actions" style="margin-top:10px">
+          <button id="obs-setup-scenes">🎬 一鍵建場景</button>
+        </div>
+        <div class="hint" id="scene-result" style="margin-top:6px"></div>
       </div>
 
       <!-- 🔗 本機配對 -->

@@ -87,13 +87,13 @@ async function refreshStatusCards(s) {
   }
 }
 
-// 點「→ 怎麼設定 OBS?」切到 OBS tab + 捲到 howto
+// 點「→ 怎麼設定 OBS?」切到「設定」分頁(OBS 連線已併入這裡)+ 捲到 OBS 連線卡
 document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'obs-hint-link') {
     e.preventDefault();
-    switchTab('obs');
+    switchTab('account');
     setTimeout(() => {
-      const h = document.querySelector('.howto');
+      const h = document.getElementById('obs-host')?.closest('.howto');
       h?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
   }
