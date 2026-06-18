@@ -115,19 +115,6 @@
         <div id="sq-list" style="margin-top:10px;font-size:13px;line-height:1.9;color:var(--text,#eee)"></div>
       </div>
 
-      <!-- 🎵 歌聲共鳴:抓共用麥分析 → 推給 cloud → OBS 的共鳴 overlay -->
-      <div class="howto" style="margin-top:18px">
-        <div class="howto-title">🎵 歌聲共鳴 → OBS overlay</div>
-        <p class="howto-note" style="margin-bottom:8px">抓你在「⚙️ 設定」選的麥、只推共鳴數值給 overlay,不傳聲音檔<br>後台「🎵 聲音共鳴」拿網址貼進 OBS,再開下面開關</p>
-        <label class="check-row">
-          <input id="reso-enabled" type="checkbox"> <span>啟用歌聲共鳴</span>
-        </label>
-        <div style="margin-top:10px;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden">
-          <i id="reso-meter" style="display:block;height:100%;width:0;border-radius:999px;background:#28dc96;transition:width .1s linear"></i>
-        </div>
-        <div class="hint" id="reso-hint" style="margin-top:6px">需 cloud 已連線。開啟後唱歌,OBS 的共鳴 overlay 就會動。</div>
-      </div>
-
       <!-- 🎙️ AI 歌聲教練:錄一段唱上雲(Gemini 聽,伴奏可)→ 回饋(需 Pro+ 與 cloud 已連線)-->
       <div class="howto" style="margin-top:18px">
         <div class="howto-title">🎙️ AI 歌聲教練</div>
@@ -157,6 +144,19 @@
         </div>
         <div class="hint" id="singcoach-hint" style="margin-top:6px;display:none"></div>
         <div id="singcoach-result" style="margin-top:8px;display:none;line-height:1.7;font-size:13px;white-space:pre-wrap;border-top:1px solid rgba(255,255,255,.1);padding-top:8px"></div>
+      </div>
+
+      <!-- 🎵 歌聲共鳴:抓共用麥分析 → 推給 cloud → OBS 的共鳴 overlay(只是開關,擺最後)-->
+      <div class="howto" style="margin-top:18px">
+        <div class="howto-title">🎵 歌聲共鳴 → OBS overlay</div>
+        <p class="howto-note" style="margin-bottom:8px">抓你在「⚙️ 設定」選的麥、只推共鳴數值給 overlay,不傳聲音檔<br>後台「🎵 聲音共鳴」拿網址貼進 OBS,再開下面開關</p>
+        <label class="check-row">
+          <input id="reso-enabled" type="checkbox"> <span>啟用歌聲共鳴</span>
+        </label>
+        <div style="margin-top:10px;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden">
+          <i id="reso-meter" style="display:block;height:100%;width:0;border-radius:999px;background:#28dc96;transition:width .1s linear"></i>
+        </div>
+        <div class="hint" id="reso-hint" style="margin-top:6px">需 cloud 已連線。開啟後唱歌,OBS 的共鳴 overlay 就會動。</div>
       </div>
     </div>
 
