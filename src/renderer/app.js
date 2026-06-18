@@ -165,9 +165,9 @@ async function fillSettingsForm() {
   paintQuick('qt-vision', '🖼️ 看畫面', _visLocalOn);
   _visProfiles = (s.visionProfiles && typeof s.visionProfiles === 'object') ? s.visionProfiles : {};
   _visHud = (s.visionHud && typeof s.visionHud === 'object') ? s.visionHud : {};
-  // 🎙️ 教練上字幕:還原(無設定 → 預設關,因為會顯示在直播畫面上)
+  // 🎙️ 教練字幕:還原(無設定 → 預設關,因為會顯示在直播畫面上)
   _coachOverlayOn = s.coachOverlay ? Boolean(s.coachOverlay.enabled) : false;
-  paintQuick('qt-coach', '🎙️ 教練上字幕', _coachOverlayOn);
+  paintQuick('qt-coach', '🎙️ 教練字幕', _coachOverlayOn);
   // 🎚️ 教練錄音的人聲 / 伴奏增益:還原(每人音訊來源不同,寫死比例不通用 → 各自調)
   if (s.coachLevels) {
     if (Number.isFinite(s.coachLevels.mic)) _micGain = s.coachLevels.mic;
@@ -677,7 +677,7 @@ const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 300, SINGCOACH_MIN_SE
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
 let _heldWav = null;   // 錄完暫存在本地的 WAV(ArrayBuffer);沒按送出/重錄前一直留著(失敗可重送、不用重錄)
 let _heldUrl = null;   // 上面那段的 blob URL(給 <audio> 回放)
-let _coachOverlayOn = false;   // 「教練上字幕」:開 → 教練回饋推到共鳴 overlay 顯示
+let _coachOverlayOn = false;   // 「教練字幕」:開 → 教練回饋推到共鳴 overlay 顯示
 let _micGain = 2.0, _sysGain = 0.5;   // 教練錄音的人聲 / 伴奏增益(滑桿可調、存設定;每人音訊來源不同)
 
 // 直播字幕只給觀眾一瞥(完整回饋留面板給主播看):去 markdown、取前 1~2 句、上限 ~90 字
@@ -835,7 +835,7 @@ async function _singCoachSend() {
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + r.text; result.style.display = ''; }
-      if (_coachOverlayOn) window.characast.coachToOverlay?.(_shortForOverlay(r.text));   // 開「教練上字幕」→ 只推精簡一瞥(完整留面板)
+      if (_coachOverlayOn) window.characast.coachToOverlay?.(_shortForOverlay(r.text));   // 開「教練字幕」→ 只推精簡一瞥(完整留面板)
       // 成功也保留錄音與回放,主播可以邊聽錄音邊看建議;要重來就按「重錄」
     } else {
       setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋')+ '(錄音還在,可再按送出)');
@@ -898,10 +898,10 @@ function _bindCoachLevel(sliderId, valId, which) {
 }
 _bindCoachLevel('coach-mic-gain', 'coach-mic-val', 'mic');
 _bindCoachLevel('coach-sys-gain', 'coach-sys-val', 'sys');
-// 🎙️ 教練上字幕快速開關:開 → 教練回饋推到共鳴 overlay
+// 🎙️ 教練字幕快速開關:開 → 教練回饋推到共鳴 overlay
 function setCoachOverlayOn(on) {
   _coachOverlayOn = Boolean(on);
-  paintQuick('qt-coach', '🎙️ 教練上字幕', _coachOverlayOn);
+  paintQuick('qt-coach', '🎙️ 教練字幕', _coachOverlayOn);
   window.characast.setSettings({ coachOverlay: { enabled: _coachOverlayOn } });
 }
 $('qt-coach')?.addEventListener('click', () => setCoachOverlayOn(!_coachOverlayOn));

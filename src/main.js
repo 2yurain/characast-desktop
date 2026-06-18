@@ -265,7 +265,7 @@ async function _songQueueReq(method, body) {
 ipcMain.handle('songqueue:get', () => _songQueueReq('GET'));
 ipcMain.handle('songqueue:action', (_e, action) => _songQueueReq('POST', { action: String(action || '') }));
 
-// 教練回饋 → 轉給 cloud → 共鳴 overlay 顯示(「教練上字幕」開關開時 renderer 才送來;沒連上就丟棄)
+// 教練回饋 → 轉給 cloud → 共鳴 overlay 顯示(「教練字幕」開關開時 renderer 才送來;沒連上就丟棄)
 ipcMain.on('coach:overlay', (_e, text) => {
   const t = String(text || '').trim();
   if (!t || !cloud.isConnected()) return;
