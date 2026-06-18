@@ -37,11 +37,15 @@ function pushLog(entry) {
 
 // ======= 視窗 =======
 function createWindow() {
+  // 記住上次視窗大小/位置 → 下次開一樣大,不用每次自己拉大
+  const saved = settings.get('windowBounds') || {};
   mainWindow = new BrowserWindow({
-    width: 720,
-    height: 700,
-    minWidth: 480,
-    minHeight: 480,
+    width: Number(saved.width) || 880,
+    height: Number(saved.height) || 940,
+    x: Number.isInteger(saved.x) ? saved.x : undefined,
+    y: Number.isInteger(saved.y) ? saved.y : undefined,
+    minWidth: 560,
+    minHeight: 600,
     title: 'CharaCast Desktop',
     backgroundColor: '#0f0c14',
     webPreferences: {
@@ -53,6 +57,16 @@ function createWindow() {
     autoHideMenuBar: true,
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  // 視窗大小/位置變動 → debounce 存起來(最大化時不存,避免還原成怪尺寸)
+  let _boundsTimer = null;
+  const saveBounds = () => {
+    clearTimeout(_boundsTimer);
+    _boundsTimer = setTimeout(() => {
+      try { if (mainWindow && !mainWindow.isMinimized() && !mainWindow.isMaximized()) settings.set('windowBounds', mainWindow.getBounds()); } catch {}
+    }, 500);
+  };
+  mainWindow.on('resize', saveBounds);
+  mainWindow.on('move', saveBounds);
   // 縱深防禦:UI 是本機檔,正常不會開新視窗或導航到外站。
   // 一律拒絕 window.open / target=_blank,並擋掉任何離開本機 UI 的 navigation。
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
