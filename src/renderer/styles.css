@@ -85,7 +85,7 @@ button.danger { background: transparent; color: var(--err); border: 1px solid #5
   display: grid; grid-template-columns: auto auto 1fr; column-gap: 7px; row-gap: 1px; align-items: center;
 }
 .card-title { grid-column: 1; grid-row: 1; color: var(--text-mute); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase }
-.status-card > button { grid-column: 3; grid-row: 1; justify-self: end; padding: 2px 8px; font-size: 11px; margin: 0 }
+.status-card > button { grid-column: 3; grid-row: 1; justify-self: end; padding: 2px 8px; font-size: 11px; margin: 0; white-space: nowrap }
 .card-pill {
   grid-column: 2; grid-row: 1; justify-self: start;
   display: inline-block;

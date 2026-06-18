@@ -59,7 +59,7 @@ function setPill(el, state, label) {
 async function refreshStatusCards(s) {
   if (!s) s = await window.characast.getStatus();
   // Cloud
-  if (s.cloud.authed) setPill($('cloud-pill'), 'connected', '🟢 已連線 + 認證');
+  if (s.cloud.authed) setPill($('cloud-pill'), 'connected', '🟢 已連線');
   else if (s.cloud.readyState === 1) setPill($('cloud-pill'), 'connecting', '🟡 認證中');
   else if (s.cloud.readyState === 0) setPill($('cloud-pill'), 'connecting', '🟡 連線中');
   else setPill($('cloud-pill'), 'error', `🔴 斷線(重試 ${s.cloud.reconnectAttempt})`);
