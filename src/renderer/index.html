@@ -135,7 +135,15 @@
         <input id="coach-question" type="text" maxlength="120" placeholder="想問教練什麼?(留空=整體聽聽)例:我高音怎麼樣?" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <input id="coach-song" type="text" maxlength="60" placeholder="這次唱哪首(留空=用點唱清單那首)" style="width:100%;margin-bottom:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <label class="check-row" style="margin-bottom:8px"><input id="coach-mix" type="checkbox"> <span>一起收伴奏(系統音)→ AI 更能判音準</span></label>
-        <button type="button" id="singcoach-btn">🎙️ 唱歌教練</button>
+        <button type="button" id="singcoach-btn">🎙️ 開始錄音</button>
+        <!-- 錄完先留在本地:可回放、再按送出(失敗不用重錄)-->
+        <div id="coach-playback" style="display:none;margin-top:10px">
+          <audio id="coach-audio" controls style="width:100%;height:36px"></audio>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button type="button" id="coach-send">📤 送給 AI 聽</button>
+            <button type="button" id="coach-rerecord" class="ghost">↻ 重錄</button>
+          </div>
+        </div>
         <div class="hint" id="singcoach-hint" style="margin-top:6px;display:none"></div>
         <div id="singcoach-result" style="margin-top:8px;display:none;line-height:1.7;font-size:13px;white-space:pre-wrap;border-top:1px solid rgba(255,255,255,.1);padding-top:8px"></div>
       </div>

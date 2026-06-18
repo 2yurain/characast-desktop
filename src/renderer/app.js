@@ -669,6 +669,8 @@ function resoStop() {
 // =====================================================
 const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 120, SINGCOACH_MIN_SECONDS = 4;
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
+let _heldWav = null;   // 錄完暫存在本地的 WAV(ArrayBuffer);沒按送出/重錄前一直留著(失敗可重送、不用重錄)
+let _heldUrl = null;   // 上面那段的 blob URL(給 <audio> 回放)
 let _coachOverlayOn = false;   // 「教練上字幕」:開 → 教練回饋推到共鳴 overlay 顯示
 
 // 直播字幕只給觀眾一瞥(完整回饋留面板給主播看):去 markdown、取前 1~2 句、上限 ~90 字
@@ -718,15 +720,24 @@ function _setSingBtns(txt, disabled) {
 
 const _mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-// 按鈕:沒在錄 → 開始;錄音中 → 停止並送出
+// 清掉暫存的錄音(換新錄音 / 重錄時),順手釋放 blob URL
+function _clearHeldWav() {
+  _heldWav = null;
+  if (_heldUrl) { try { URL.revokeObjectURL(_heldUrl); } catch {} _heldUrl = null; }
+  const pb = $('coach-playback'); if (pb) pb.style.display = 'none';
+  const au = $('coach-audio'); if (au) { try { au.pause(); } catch {} au.removeAttribute('src'); }
+}
+
+// 按鈕:沒在錄 → 開始;錄音中 → 停止(停止只暫存,不自動送)
 function singCoachToggle() {
   if (_singRec) _singCoachStop();
   else _singCoachStart();
 }
 
 async function _singCoachStart() {
-  const btn = $('singcoach-btn'), result = $('singcoach-result');
+  const result = $('singcoach-result');
   if (result) result.style.display = 'none';
+  _clearHeldWav();   // 開新錄音 → 丟掉上一段暫存
   let stream, ctx;
   try {
     const deviceId = $('mic-device')?.value || '';
@@ -756,10 +767,10 @@ async function _singCoachStart() {
     }
     proc.connect(mute); mute.connect(ctx.destination);
     _singRec = { ctx, stream, sysStream, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null };
-    _setSingBtns('⏹ 停止並送出', false);
+    _setSingBtns('⏹ 停止', false);
     _singRec.tick = setInterval(() => {
       const s = Math.floor((Date.now() - _singRec.t0) / 1000);
-      setSingCoachHint(`🔴 錄音中… ${_mmss(s)} —— 唱到想停就按「停止並送出」(上限 ${_mmss(SINGCOACH_MAX_SECONDS)})`);
+      setSingCoachHint(`🔴 錄音中… ${_mmss(s)} —— 唱到想停就按「停止」(上限 ${_mmss(SINGCOACH_MAX_SECONDS)})`);
       if (s >= SINGCOACH_MAX_SECONDS) _singCoachStop();   // 到上限自動停
     }, 500);
   } catch (e) {
@@ -770,10 +781,10 @@ async function _singCoachStart() {
   }
 }
 
+// 停止 = 收尾錄音 → 編碼成 WAV → 暫存在本地等使用者回放 / 按送出(不自動上傳)
 async function _singCoachStop() {
   const rec = _singRec; if (!rec) return;
   _singRec = null;
-  const btn = $('singcoach-btn'), result = $('singcoach-result');
   if (rec.tick) clearInterval(rec.tick);
   try { rec.proc.disconnect(); } catch {}
   try { rec.stream.getTracks().forEach((t) => t.stop()); } catch {}
@@ -782,26 +793,41 @@ async function _singCoachStop() {
   const secs = Math.round((Date.now() - rec.t0) / 1000);
   if (secs < SINGCOACH_MIN_SECONDS) {
     setSingCoachHint(`✗ 太短了(只 ${secs}s),多唱幾句再停`);
-    _setSingBtns('🎙️ 唱歌教練', false);
+    _setSingBtns('🎙️ 開始錄音', false);
     return;
   }
-  _setSingBtns('🎙️ 唱歌教練', true);
+  // 編碼 + 暫存,顯示回放與送出按鈕(此時還沒上傳)
+  _heldWav = _encodeWav16k(rec.chunks, rec.srcRate);
+  if (_heldUrl) { try { URL.revokeObjectURL(_heldUrl); } catch {} }
+  _heldUrl = URL.createObjectURL(new Blob([_heldWav], { type: 'audio/wav' }));
+  const au = $('coach-audio'); if (au) au.src = _heldUrl;
+  const pb = $('coach-playback'); if (pb) pb.style.display = '';
+  const sendBtn = $('coach-send'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 送給 AI 聽'; }
+  setSingCoachHint(`✓ 錄好了(${_mmss(secs)})—— 可以先▶播放聽聽,按「送給 AI 聽」要回饋`);
+  _setSingBtns('🎙️ 重新錄音', false);
+}
+
+// 把暫存的 WAV 送上雲(可重複按:503 / 失敗都不用重錄)
+async function _singCoachSend() {
+  if (!_heldWav) { setSingCoachHint('還沒有錄音,先按「開始錄音」'); return; }
+  const result = $('singcoach-result'), sendBtn = $('coach-send');
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '⏳ 送出中…'; }
   setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
   try {
-    const wav = _encodeWav16k(rec.chunks, rec.srcRate);
-    const r = await window.characast.coachSingAudio(wav, ($('coach-song')?.value || '').trim(), ($('coach-question')?.value || '').trim());
-    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌聲教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再試一次', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
+    const r = await window.characast.coachSingAudio(_heldWav, ($('coach-song')?.value || '').trim(), ($('coach-question')?.value || '').trim());
+    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌聲教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再按一次送出', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
-      setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》(${_mmss(secs)})` : `✓ 回饋來了(${_mmss(secs)})`);
+      setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + r.text; result.style.display = ''; }
       if (_coachOverlayOn) window.characast.coachToOverlay?.(_shortForOverlay(r.text));   // 開「教練上字幕」→ 只推精簡一瞥(完整留面板)
+      // 成功也保留錄音與回放,主播可以邊聽錄音邊看建議;要重來就按「重錄」
     } else {
-      setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋'));
+      setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋')+ '(錄音還在,可再按送出)');
     }
   } catch (e) {
-    setSingCoachHint('✗ 上傳失敗:' + (e.message || e));
+    setSingCoachHint('✗ 上傳失敗:' + (e.message || e) + '(錄音還在,可再按送出)');
   } finally {
-    _setSingBtns(null, false);
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 送給 AI 聽'; }
   }
 }
 
@@ -831,6 +857,8 @@ function setResoEnabled(on) {
 $('reso-enabled')?.addEventListener('change', (e) => setResoEnabled(e.target.checked));
 $('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?.checked));
 $('singcoach-btn')?.addEventListener('click', singCoachToggle);
+$('coach-send')?.addEventListener('click', _singCoachSend);
+$('coach-rerecord')?.addEventListener('click', () => { if (!_singRec) _singCoachStart(); });
 // 🎙️ 教練上字幕快速開關:開 → 教練回饋推到共鳴 overlay
 function setCoachOverlayOn(on) {
   _coachOverlayOn = Boolean(on);
