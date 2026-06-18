@@ -667,7 +667,7 @@ function resoStop() {
 // =====================================================
 // 🎙️ AI 歌聲教練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
 // =====================================================
-const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 120, SINGCOACH_MIN_SECONDS = 4;
+const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 300, SINGCOACH_MIN_SECONDS = 4;
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
 let _heldWav = null;   // 錄完暫存在本地的 WAV(ArrayBuffer);沒按送出/重錄前一直留著(失敗可重送、不用重錄)
 let _heldUrl = null;   // 上面那段的 blob URL(給 <audio> 回放)
