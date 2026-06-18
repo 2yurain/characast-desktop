@@ -168,6 +168,12 @@ async function fillSettingsForm() {
   // 🎙️ 教練上字幕:還原(無設定 → 預設關,因為會顯示在直播畫面上)
   _coachOverlayOn = s.coachOverlay ? Boolean(s.coachOverlay.enabled) : false;
   paintQuick('qt-coach', '🎙️ 教練上字幕', _coachOverlayOn);
+  // 🎚️ 教練錄音的人聲 / 伴奏增益:還原(每人音訊來源不同,寫死比例不通用 → 各自調)
+  if (s.coachLevels) {
+    if (Number.isFinite(s.coachLevels.mic)) _micGain = s.coachLevels.mic;
+    if (Number.isFinite(s.coachLevels.sys)) _sysGain = s.coachLevels.sys;
+  }
+  _applyCoachLevelUI();
   // 🔊 AI 語音(設定分頁開關):還原(預設關;開著的話進來點任何地方就解鎖)
   _ttsEnabled = Boolean(s.voice && s.voice.enabled);
   if ($('tts-toggle')) $('tts-toggle').checked = _ttsEnabled;
@@ -672,6 +678,7 @@ let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcR
 let _heldWav = null;   // 錄完暫存在本地的 WAV(ArrayBuffer);沒按送出/重錄前一直留著(失敗可重送、不用重錄)
 let _heldUrl = null;   // 上面那段的 blob URL(給 <audio> 回放)
 let _coachOverlayOn = false;   // 「教練上字幕」:開 → 教練回饋推到共鳴 overlay 顯示
+let _micGain = 2.0, _sysGain = 0.5;   // 教練錄音的人聲 / 伴奏增益(滑桿可調、存設定;每人音訊來源不同)
 
 // 直播字幕只給觀眾一瞥(完整回饋留面板給主播看):去 markdown、取前 1~2 句、上限 ~90 字
 function _shortForOverlay(t) {
@@ -758,23 +765,23 @@ async function _singCoachStart() {
     const mute = ctx.createGain(); mute.gain.value = 0;   // 靜音接 destination,讓 onaudioprocess 觸發又不回授
     const chunks = [];
     proc.onaudioprocess = (ev) => { chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
-    // 人聲(mic)
-    const micGain = ctx.createGain(); micGain.gain.value = 2.0;   // 人聲拉大(伴奏維持 0.75,讓主播聲音明顯壓過伴奏)
-    ctx.createMediaStreamSource(stream).connect(micGain).connect(proc);
-    // 可選:混入系統音(伴奏)當音準參考 —— 勾「一起收伴奏」才抓;伴奏壓小聲避免蓋過人聲
-    let sysStream = null;
+    // 人聲(mic)—— 增益吃滑桿值(錄音中拉也即時生效,見 _singRec.micGainNode)
+    const micGainNode = ctx.createGain(); micGainNode.gain.value = _micGain;
+    ctx.createMediaStreamSource(stream).connect(micGainNode).connect(proc);
+    // 可選:混入系統音(伴奏)當音準參考 —— 勾「一起收伴奏」才抓;比例由使用者滑桿決定
+    let sysStream = null, sysGainNode = null;
     if ($('coach-mix')?.checked) {
       try {
         sysStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
         sysStream.getVideoTracks().forEach((t) => t.stop());   // 只要音訊,畫面立刻丟掉
         if (sysStream.getAudioTracks().length) {
-          const sysGain = ctx.createGain(); sysGain.gain.value = 0.5;   // 伴奏聲量(人聲拉到 2.0 後改 0.5)
-          ctx.createMediaStreamSource(sysStream).connect(sysGain).connect(proc);
+          sysGainNode = ctx.createGain(); sysGainNode.gain.value = _sysGain;
+          ctx.createMediaStreamSource(sysStream).connect(sysGainNode).connect(proc);
         } else { sysStream.getTracks().forEach((t) => t.stop()); sysStream = null; }
       } catch (e) { setSingCoachHint('(抓不到系統音,改只錄人聲)'); sysStream = null; }
     }
     proc.connect(mute); mute.connect(ctx.destination);
-    _singRec = { ctx, stream, sysStream, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null };
+    _singRec = { ctx, stream, sysStream, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null, micGainNode, sysGainNode };
     _setSingBtns('⏹ 停止', false);
     _singRec.tick = setInterval(() => {
       const s = Math.floor((Date.now() - _singRec.t0) / 1000);
@@ -868,6 +875,29 @@ $('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?
 $('singcoach-btn')?.addEventListener('click', singCoachToggle);
 $('coach-send')?.addEventListener('click', _singCoachSend);
 $('coach-rerecord')?.addEventListener('click', () => { if (!_singRec) _singCoachStart(); });
+
+// 🎚️ 人聲 / 伴奏增益滑桿:把目前值寫進滑桿 + 數字標籤(載入設定 / 初始時)
+function _applyCoachLevelUI() {
+  const mic = $('coach-mic-gain'), sys = $('coach-sys-gain');
+  if (mic) { mic.value = _micGain; const l = $('coach-mic-val'); if (l) l.textContent = _micGain.toFixed(1) + '×'; }
+  if (sys) { sys.value = _sysGain; const l = $('coach-sys-val'); if (l) l.textContent = _sysGain.toFixed(1) + '×'; }
+}
+// 滑桿拖動:更新值 + 標籤 + 錄音中即時套用;放開才存設定(避免拖動狂寫)
+function _bindCoachLevel(sliderId, valId, which) {
+  const sl = $(sliderId); if (!sl) return;
+  sl.addEventListener('input', () => {
+    const v = parseFloat(sl.value);
+    if (!Number.isFinite(v)) return;
+    if (which === 'mic') { _micGain = v; if (_singRec?.micGainNode) _singRec.micGainNode.gain.value = v; }
+    else { _sysGain = v; if (_singRec?.sysGainNode) _singRec.sysGainNode.gain.value = v; }
+    const l = $(valId); if (l) l.textContent = v.toFixed(1) + '×';
+  });
+  sl.addEventListener('change', () => {   // 放開 → 存(write-through,下次開記得)
+    window.characast.setSettings({ coachLevels: { mic: _micGain, sys: _sysGain } });
+  });
+}
+_bindCoachLevel('coach-mic-gain', 'coach-mic-val', 'mic');
+_bindCoachLevel('coach-sys-gain', 'coach-sys-val', 'sys');
 // 🎙️ 教練上字幕快速開關:開 → 教練回饋推到共鳴 overlay
 function setCoachOverlayOn(on) {
   _coachOverlayOn = Boolean(on);

@@ -135,6 +135,17 @@
         <input id="coach-question" type="text" maxlength="120" placeholder="想問教練什麼?(留空=整體聽聽)例:我高音怎麼樣?" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <input id="coach-song" type="text" maxlength="60" placeholder="這次唱哪首(留空=用點唱清單那首)" style="width:100%;margin-bottom:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <label class="check-row" style="margin-bottom:8px"><input id="coach-mix" type="checkbox"> <span>一起收伴奏(系統音)→ AI 更能判音準</span></label>
+        <!-- 🎚️ 音量比例:每人麥 / 音效卡不同,自己調到「人聲清楚、伴奏不蓋」;錄音中拉也即時生效 -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--text-dim,#aaa)">
+          <span style="width:48px">🎤 人聲</span>
+          <input id="coach-mic-gain" type="range" min="0.5" max="4" step="0.1" value="2" style="flex:1">
+          <span id="coach-mic-val" style="width:34px;text-align:right">2.0×</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--text-dim,#aaa)">
+          <span style="width:48px">🎵 伴奏</span>
+          <input id="coach-sys-gain" type="range" min="0" max="1.5" step="0.05" value="0.5" style="flex:1">
+          <span id="coach-sys-val" style="width:34px;text-align:right">0.5×</span>
+        </div>
         <button type="button" id="singcoach-btn">🎙️ 開始錄音</button>
         <!-- 錄完先留在本地:可回放、再按送出(失敗不用重錄)-->
         <div id="coach-playback" style="display:none;margin-top:10px">
