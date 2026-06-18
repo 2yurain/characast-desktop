@@ -768,7 +768,7 @@ async function _singCoachStart() {
         sysStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
         sysStream.getVideoTracks().forEach((t) => t.stop());   // 只要音訊,畫面立刻丟掉
         if (sysStream.getAudioTracks().length) {
-          const sysGain = ctx.createGain(); sysGain.gain.value = 0.75;   // 伴奏聲量(0.4→0.75,使用者反映太小)
+          const sysGain = ctx.createGain(); sysGain.gain.value = 0.5;   // 伴奏聲量(人聲拉到 2.0 後改 0.5)
           ctx.createMediaStreamSource(sysStream).connect(sysGain).connect(proc);
         } else { sysStream.getTracks().forEach((t) => t.stop()); sysStream = null; }
       } catch (e) { setSingCoachHint('(抓不到系統音,改只錄人聲)'); sysStream = null; }
