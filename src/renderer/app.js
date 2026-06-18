@@ -818,8 +818,8 @@ async function _singCoachStop() {
   _heldUrl = URL.createObjectURL(new Blob([playWav], { type: 'audio/wav' }));
   const au = $('coach-audio'); if (au) au.src = _heldUrl;
   const pb = $('coach-playback'); if (pb) pb.style.display = '';
-  const sendBtn = $('coach-send'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 送給 AI 聽'; }
-  setSingCoachHint(`✓ 錄好了(${_mmss(secs)})—— 可以先▶播放聽聽,按「送給 AI 聽」要回饋`);
+  const sendBtn = $('coach-send'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 教練評語'; }
+  setSingCoachHint(`✓ 錄好了(${_mmss(secs)})—— 可以先▶播放聽聽,按「教練評語」要回饋`);
   _setSingBtns('🎙️ 重新錄音', false);
 }
 
@@ -843,7 +843,7 @@ async function _singCoachSend() {
   } catch (e) {
     setSingCoachHint('✗ 上傳失敗:' + (e.message || e) + '(錄音還在,可再按送出)');
   } finally {
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 送給 AI 聽'; }
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 教練評語'; }
   }
 }
 
