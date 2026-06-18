@@ -759,7 +759,7 @@ async function _singCoachStart() {
     const chunks = [];
     proc.onaudioprocess = (ev) => { chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
     // 人聲(mic)
-    const micGain = ctx.createGain(); micGain.gain.value = 1.0;
+    const micGain = ctx.createGain(); micGain.gain.value = 2.0;   // 人聲拉大(伴奏維持 0.75,讓主播聲音明顯壓過伴奏)
     ctx.createMediaStreamSource(stream).connect(micGain).connect(proc);
     // 可選:混入系統音(伴奏)當音準參考 —— 勾「一起收伴奏」才抓;伴奏壓小聲避免蓋過人聲
     let sysStream = null;
