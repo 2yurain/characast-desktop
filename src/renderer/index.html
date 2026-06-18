@@ -120,7 +120,7 @@
         <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">按「開始」唱、唱到想停(例如唱完一段副歌)再按「停止並送出」→ AI 聽 → 只評這一次(不跟上次比,避免亂掰)<br><b>開伴奏唱也可以</b> —— 而且伴奏讓 mic 收得到的話,AI 反而更能判音準(對不對得上和聲);想要乾淨人聲就把伴奏走耳機<br>只在你送出才上傳,聽完即丟、不保存音檔;上限 5 分鐘<br>想讓回饋出現在直播畫面:開控制中心的「🎙️ 教練上字幕」</p></details>
         <input id="coach-question" type="text" maxlength="120" placeholder="想問教練什麼?(留空=整體聽聽)例:我高音怎麼樣?" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <input id="coach-song" type="text" maxlength="60" placeholder="這次唱哪首(留空=用點唱清單那首)" style="width:100%;margin-bottom:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
-        <label class="check-row" style="margin-bottom:8px"><input id="coach-mix" type="checkbox"> <span>一起收伴奏(系統音)→ AI 更能判音準</span></label>
+        <label class="check-row" style="margin-bottom:8px"><input id="coach-mix" type="checkbox"> <span>一起收伴奏(系統音)</span></label>
         <!-- 🎚️ 音量比例:每人麥 / 音效卡不同,自己調到「人聲清楚、伴奏不蓋」;錄音中拉也即時生效 -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--text-dim,#aaa)">
           <span style="width:48px">🎤 人聲</span>
@@ -322,8 +322,7 @@
         </div>
       </div>
 
-      <div class="hint" style="margin-top:18px">大部分人不用動。除非用自架 cloud / staging。</div>
-      <label>Cloud WebSocket URL</label>
+      <label style="margin-top:18px">Cloud WebSocket URL</label>
       <input id="cloud-url" type="text">
       <label>Cloud HTTPS URL(配對換 token 用)</label>
       <input id="cloud-https-url" type="text">
