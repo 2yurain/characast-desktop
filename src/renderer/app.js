@@ -712,13 +712,27 @@ async function _singCoachStart() {
       echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
-    const src = ctx.createMediaStreamSource(stream);
     const proc = ctx.createScriptProcessor(4096, 1, 1);
     const mute = ctx.createGain(); mute.gain.value = 0;   // 靜音接 destination,讓 onaudioprocess 觸發又不回授
     const chunks = [];
     proc.onaudioprocess = (ev) => { chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
-    src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
-    _singRec = { ctx, stream, src, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null };
+    // 人聲(mic)
+    const micGain = ctx.createGain(); micGain.gain.value = 1.0;
+    ctx.createMediaStreamSource(stream).connect(micGain).connect(proc);
+    // 可選:混入系統音(伴奏)當音準參考 —— 勾「一起收伴奏」才抓;伴奏壓小聲避免蓋過人聲
+    let sysStream = null;
+    if ($('coach-mix')?.checked) {
+      try {
+        sysStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+        sysStream.getVideoTracks().forEach((t) => t.stop());   // 只要音訊,畫面立刻丟掉
+        if (sysStream.getAudioTracks().length) {
+          const sysGain = ctx.createGain(); sysGain.gain.value = 0.4;
+          ctx.createMediaStreamSource(sysStream).connect(sysGain).connect(proc);
+        } else { sysStream.getTracks().forEach((t) => t.stop()); sysStream = null; }
+      } catch (e) { setSingCoachHint('(抓不到系統音,改只錄人聲)'); sysStream = null; }
+    }
+    proc.connect(mute); mute.connect(ctx.destination);
+    _singRec = { ctx, stream, sysStream, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null };
     _setSingBtns('⏹ 停止並送出', false);
     _singRec.tick = setInterval(() => {
       const s = Math.floor((Date.now() - _singRec.t0) / 1000);
@@ -738,8 +752,9 @@ async function _singCoachStop() {
   _singRec = null;
   const btn = $('singcoach-btn'), result = $('singcoach-result');
   if (rec.tick) clearInterval(rec.tick);
-  try { rec.proc.disconnect(); rec.src.disconnect(); } catch {}
+  try { rec.proc.disconnect(); } catch {}
   try { rec.stream.getTracks().forEach((t) => t.stop()); } catch {}
+  try { if (rec.sysStream) rec.sysStream.getTracks().forEach((t) => t.stop()); } catch {}
   try { await rec.ctx.close(); } catch {}
   const secs = Math.round((Date.now() - rec.t0) / 1000);
   if (secs < SINGCOACH_MIN_SECONDS) {

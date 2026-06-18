@@ -4,7 +4,7 @@
 // 啟動視窗,管理 OBS + Cloud 兩條 WebSocket,IPC 跟 renderer 溝通。
 // =====================================================
 
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, ipcMain, session, desktopCapturer } = require('electron');
 const path = require('path');
 const settings = require('./lib/settings');
 const { CloudClient } = require('./lib/cloudClient');
@@ -447,6 +447,15 @@ app.whenReady().then(() => {
   // renderer 跑在 sandbox,getUserMedia 仍要 main 這關放行。
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
+  // 歌聲教練「混音」用:讓 renderer 抓系統音(伴奏)做 loopback,不跳螢幕選擇器。
+  // 只在 renderer 呼叫 getDisplayMedia 時觸發;我們只取 audio: 'loopback'(video 拿來占位,renderer 立刻丟掉)。
+  try {
+    session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+      desktopCapturer.getSources({ types: ['screen'] })
+        .then((sources) => callback(sources[0] ? { video: sources[0], audio: 'loopback' } : {}))
+        .catch(() => callback({}));
+    }, { useSystemPicker: false });
+  } catch (e) { pushLog({ level: 'warn', msg: '系統音擷取 handler 設定失敗:' + e.message }); }
 
   // 接 log → buffer + 廣播 renderer
   cloud.on('log', pushLog);

@@ -133,6 +133,7 @@
         <div class="howto-title">🎙️ AI 歌聲教練</div>
         <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">按「開始」唱、唱到想停(例如唱完一段副歌)再按「停止並送出」→ AI 聽 → 只評這一次(不跟上次比,避免亂掰)<br><b>開伴奏唱也可以</b> —— 而且伴奏讓 mic 收得到的話,AI 反而更能判音準(對不對得上和聲);想要乾淨人聲就把伴奏走耳機<br>只在你送出才上傳,聽完即丟、不保存音檔;上限 2 分鐘<br>想讓回饋出現在直播畫面:開控制中心的「🎙️ 教練上字幕」</p></details>
         <input id="coach-song" type="text" maxlength="60" placeholder="這次唱哪首(留空=用點唱清單那首)" style="width:100%;margin-bottom:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
+        <label class="check-row" style="margin-bottom:8px"><input id="coach-mix" type="checkbox"> <span>一起收伴奏(系統音)→ AI 更能判音準</span></label>
         <button type="button" id="singcoach-btn">🎙️ 唱歌教練</button>
         <div class="hint" id="singcoach-hint" style="margin-top:6px;display:none"></div>
         <div id="singcoach-result" style="margin-top:8px;display:none;line-height:1.7;font-size:13px;white-space:pre-wrap;border-top:1px solid rgba(255,255,255,.1);padding-top:8px"></div>
