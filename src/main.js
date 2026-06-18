@@ -275,6 +275,7 @@ ipcMain.on('coach:overlay', (_e, text) => {
 ipcMain.handle('singing:coachAudio', async (_e, payload) => {
   const wavBuf = payload && payload.wav ? payload.wav : payload;   // 相容舊呼叫(直接傳 buffer)
   const song = (payload && typeof payload.song === 'string') ? payload.song.trim() : '';
+  const question = (payload && typeof payload.question === 'string') ? payload.question.trim() : '';
   const token = settings.get('desktopToken');
   const httpsUrl = settings.get('cloudHttpsUrl');
   const chk = settings.validateCloudUrl(httpsUrl, { kind: 'https' });
@@ -282,7 +283,10 @@ ipcMain.handle('singing:coachAudio', async (_e, payload) => {
   if (!chk.ok) return { ok: false, error: 'cloud 位址不合法' };
   if (!wavBuf || !wavBuf.byteLength) return { ok: false, error: '沒有錄到聲音' };
   try {
-    const qs = song ? `?song=${encodeURIComponent(song.slice(0, 60))}` : '';
+    const parts = [];
+    if (song) parts.push('song=' + encodeURIComponent(song.slice(0, 60)));
+    if (question) parts.push('q=' + encodeURIComponent(question.slice(0, 200)));
+    const qs = parts.length ? '?' + parts.join('&') : '';
     const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/singing-coach${qs}`, {
       method: 'POST',
       headers: { 'Content-Type': 'audio/wav', 'x-desktop-token': token },
