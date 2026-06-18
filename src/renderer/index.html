@@ -259,6 +259,18 @@
         </div>
         <div class="hint" style="margin-top:10px">撤銷後本機 token 會刪,下次開要重新到後台拿配對碼。換電腦時用得到。</div>
       </div>
+
+      <!-- ☁️ 雲端連線位址(一般不用動,自架 cloud / staging 才改)-->
+      <div class="howto">
+        <div class="howto-title">☁️ 雲端連線</div>
+        <label>Cloud WebSocket URL</label>
+        <input id="cloud-url" type="text">
+        <label>Cloud HTTPS URL(配對換 token 用)</label>
+        <input id="cloud-https-url" type="text">
+        <div class="form-actions">
+          <button id="cloud-save">儲存</button>
+        </div>
+      </div>
     </div>
 
     <!-- Tab: 進階 -->
@@ -321,13 +333,6 @@
         </div>
       </div>
 
-      <label style="margin-top:18px">Cloud WebSocket URL</label>
-      <input id="cloud-url" type="text">
-      <label>Cloud HTTPS URL(配對換 token 用)</label>
-      <input id="cloud-https-url" type="text">
-      <div class="form-actions">
-        <button id="cloud-save">儲存</button>
-      </div>
     </div>
     </div><!-- /tab-scroll -->
 
