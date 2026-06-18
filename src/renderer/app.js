@@ -671,6 +671,15 @@ const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 120, SINGCOACH_MIN_SE
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
 let _coachOverlayOn = false;   // 「教練上字幕」:開 → 教練回饋推到共鳴 overlay 顯示
 
+// 直播字幕只給觀眾一瞥(完整回饋留面板給主播看):去 markdown、取前 1~2 句、上限 ~90 字
+function _shortForOverlay(t) {
+  let s = String(t || '').replace(/[#*>`_~]/g, '').replace(/\s+/g, ' ').trim();
+  if (s.length <= 90) return s;
+  const cut = s.slice(0, 90);
+  const p = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('!'), cut.lastIndexOf('?'), cut.lastIndexOf(','));
+  return (p > 30 ? cut.slice(0, p + 1) : cut.trim()) + '…';
+}
+
 // Float32 chunks(任意 sr)→ 16k mono → WAV ArrayBuffer
 function _encodeWav16k(chunks, srcRate) {
   let total = 0; for (const c of chunks) total += c.length;
@@ -785,7 +794,7 @@ async function _singCoachStop() {
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》(${_mmss(secs)})` : `✓ 回饋來了(${_mmss(secs)})`);
       if (result) { result.textContent = '🎙️ ' + r.text; result.style.display = ''; }
-      if (_coachOverlayOn) window.characast.coachToOverlay?.(r.text);   // 開了「教練上字幕」→ 推到共鳴 overlay
+      if (_coachOverlayOn) window.characast.coachToOverlay?.(_shortForOverlay(r.text));   // 開「教練上字幕」→ 只推精簡一瞥(完整留面板)
     } else {
       setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋'));
     }
