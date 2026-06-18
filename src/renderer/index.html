@@ -71,16 +71,16 @@
 
     <!-- Tabs:OBS / 進階 / 帳號 -->
     <div class="tabs-nav" role="tablist">
-      <button class="tab-btn active" data-tab="obs">🎬 OBS</button>
-      <button class="tab-btn" data-tab="sing">🎤 唱歌</button>
+      <button class="tab-btn active" data-tab="sing">🎛️ 控制台</button>
+      <button class="tab-btn" data-tab="obs">🎬 OBS / 場景</button>
       <button class="tab-btn" data-tab="vts">🎭 VTuber</button>
-      <button class="tab-btn" data-tab="account">👤 帳號</button>
       <button class="tab-btn" data-tab="advanced">⚙️ 進階</button>
+      <button class="tab-btn" data-tab="account">👤 帳號</button>
     </div>
 
     <div class="tab-scroll">
     <!-- Tab: OBS -->
-    <div class="tab-pane active" data-tab="obs">
+    <div class="tab-pane" data-tab="obs">
       <details class="howto">
         <summary class="howto-title">📖 第一次設定怎麼做(3 步)</summary>
         <ol class="howto-list">
@@ -113,7 +113,7 @@
       <!-- 🎬 一鍵設置場景:在 OBS 建好「遊戲 / 聊天 / 唱歌」場景 + CharaCast overlay -->
       <div class="howto" style="margin-top:18px">
         <div class="howto-title">🎬 一鍵設置場景</div>
-        <p class="howto-note" style="margin-bottom:8px">幫你在 OBS 一次建好「遊戲 / 聊天 / 唱歌」三個場景,CharaCast overlay(形象 / 觀眾卡 / 共鳴 / 點歌)自動擺好<br>只會「新增」,同名場景會跳過、不動你現有設定<br>需 OBS 已連線 + 已配對</p>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">幫你在 OBS 一次建好「遊戲 / 聊天 / 唱歌」三個場景,CharaCast overlay(形象 / 觀眾卡 / 共鳴 / 點歌)自動擺好<br>只會「新增」,同名場景會跳過、不動你現有設定<br>需 OBS 已連線 + 已配對</p></details>
         <label class="check-row"><input id="scene-game" type="checkbox" checked> <span>🎮 遊戲</span></label>
         <label class="check-row"><input id="scene-chat" type="checkbox" checked> <span>💬 聊天</span></label>
         <label class="check-row"><input id="scene-sing" type="checkbox" checked> <span>🎤 唱歌</span></label>
@@ -126,8 +126,8 @@
 
     </div>
 
-    <!-- Tab: 唱歌(麥克風 + 歌聲共鳴 + AI 歌聲教練)-->
-    <div class="tab-pane" data-tab="sing">
+    <!-- Tab: 控制台(每天會用的:點唱 + 唱歌教練 + 麥克風 + 共鳴)-->
+    <div class="tab-pane active" data-tab="sing">
       <!-- 🎵 點唱歌單:觀眾點的歌(desktopToken 控制,同後台 /me/songqueue)-->
       <div class="howto">
         <div class="howto-title">🎵 點唱歌單</div>
@@ -166,7 +166,7 @@
       <!-- 🎙️ AI 歌聲教練:錄一段清唱上雲(Gemini 聽)→ 回饋(需 Pro+ 與 cloud 已連線)-->
       <div class="howto" style="margin-top:18px">
         <div class="howto-title">🎙️ AI 歌聲教練</div>
-        <p class="howto-note" style="margin-bottom:8px">按「開始」錄清唱、唱到想停(例如唱完一段副歌)再按「停止並送出」→ AI 聽 → 只評這一次(不跟上次比,避免亂掰)<br>只在你送出才上傳,聽完即丟、不保存音檔;上限 2 分鐘<br>想讓回饋出現在直播畫面:開控制中心的「🎙️ 教練上字幕」</p>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">按「開始」錄清唱、唱到想停(例如唱完一段副歌)再按「停止並送出」→ AI 聽 → 只評這一次(不跟上次比,避免亂掰)<br>只在你送出才上傳,聽完即丟、不保存音檔;上限 2 分鐘<br>想讓回饋出現在直播畫面:開控制中心的「🎙️ 教練上字幕」</p></details>
         <input id="coach-song" type="text" maxlength="60" placeholder="這次唱哪首(留空=用點唱清單那首)" style="width:100%;margin-bottom:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <button type="button" id="singcoach-btn">🎙️ 唱歌教練</button>
         <div class="hint" id="singcoach-hint" style="margin-top:6px;display:none"></div>
@@ -243,7 +243,7 @@
       <!-- 🧠 讓 AI 聽你說話(本地 whisper STT,WebGPU)-->
       <div class="howto">
         <div class="howto-title">🧠 讓 AI 聽你說話(語音辨識)</div>
-        <p class="howto-note" style="margin-bottom:8px">這台會用 GPU 本地辨識「🎤 唱歌」分頁選的麥克風<br>只把逐字短文字當脈絡送上雲,不傳聲音檔、不存逐字稿</p>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">這台會用 GPU 本地辨識「🎛️ 控制台」分頁選的麥克風<br>只把逐字短文字當脈絡送上雲,不傳聲音檔、不存逐字稿</p></details>
         <label class="check-row">
           <input id="stt-enabled" type="checkbox"> <span>讓 AI 聽你說話</span>
         </label>
@@ -253,7 +253,7 @@
       <!-- 🖼️ 讓 AI 看畫面(差異閘 + 本地 CLIP 場景分類)-->
       <div class="howto" style="margin-top:18px">
         <div class="howto-title">🖼️ 讓 AI 看畫面(場景感知)</div>
-        <p class="howto-note" style="margin-bottom:8px">需 OBS 已連線。這台會定時截「目前場景」用 GPU 本地判斷畫面在幹嘛(團戰/聊天/唱歌…)<br>只把短描述當脈絡送上雲,不傳畫面圖檔</p>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">需 OBS 已連線。這台會定時截「目前場景」用 GPU 本地判斷畫面在幹嘛(團戰/聊天/唱歌…)<br>只把短描述當脈絡送上雲,不傳畫面圖檔</p></details>
         <label class="check-row">
           <input id="vision-enabled" type="checkbox"> <span>讓 AI 看畫面</span>
         </label>
@@ -262,7 +262,7 @@
         <!-- Layer 2 校準:教這款遊戲的細場景(團戰/結算…)-->
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2a2738)">
           <div style="font-weight:600;margin-bottom:4px">🎯 校準這款遊戲(進階,選用)</div>
-          <p class="howto-note" style="margin-bottom:8px">教 AI 認這款遊戲「<strong>每次長得都很像的大事件畫面</strong>」(勝利 / 結算 / 死亡 / 五殺…自己命名)<br>自由新增場景 → 每個場景按「＋擷取」存幾張(多角度更準)<br>⚠ 行為(團戰 / 走位)few-shot 抓不準,那種改用下面的「框選區」<br>離線也能校:用別人的畫面 / VOD,自己填遊戲名即可</p>
+          <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">教 AI 認這款遊戲「<strong>每次長得都很像的大事件畫面</strong>」(勝利 / 結算 / 死亡 / 五殺…自己命名)<br>自由新增場景 → 每個場景按「＋擷取」存幾張(多角度更準)<br>⚠ 行為(團戰 / 走位)few-shot 抓不準,那種改用下面的「框選區」<br>離線也能校:用別人的畫面 / VOD,自己填遊戲名即可</p></details>
           <label style="font-size:13px">遊戲名稱(校準檔 key)</label>
           <input id="cal-game-input" maxlength="80" placeholder="例:傳說對決(直播中會自動帶入 Twitch 分類)"
                  style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
@@ -278,7 +278,7 @@
           <!-- 🎯 框選區:多個框,每框一種偵測法(變化率 / 讀數字)-->
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2a2738)">
             <div style="font-weight:600;margin-bottom:4px">🎯 框選區（戰鬥 / 戰況 / 人頭比數）</div>
-            <p class="howto-note" style="margin-bottom:8px">在畫面上框要盯的區塊，每框選一種偵測法：<br>• <strong>變化率</strong>（戰鬥框 / 戰況框）— 盯那塊變多快，爆動 = 激戰，不看內容、不受地圖影響<br>• <strong>讀數字</strong>（人頭比數 / KDA）— 讀那塊的數字念給 AI，只送文字<br>⚠ 讀數字需 HUD 數字夠清楚，版位固定的計分板最準；準度因遊戲而異</p>
+            <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">在畫面上框要盯的區塊，每框選一種偵測法：<br>• <strong>變化率</strong>（戰鬥框 / 戰況框）— 盯那塊變多快，爆動 = 激戰，不看內容、不受地圖影響<br>• <strong>讀數字</strong>（人頭比數 / KDA）— 讀那塊的數字念給 AI，只送文字<br>⚠ 讀數字需 HUD 數字夠清楚，版位固定的計分板最準；準度因遊戲而異</p></details>
             <div id="zone-list" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px"></div>
             <button id="kf-pick-btn" class="ghost" type="button">📐 新增框選區</button>
             <div id="kf-pick" style="display:none;position:relative;margin-top:8px;border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:crosshair;user-select:none">

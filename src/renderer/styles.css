@@ -220,3 +220,10 @@ details.howto[open] > summary::after { content: ' ▾' }
 .log-entry.warn .lvl { color: var(--warn) }
 .log-entry.err .lvl { color: var(--err) }
 .log-entry .lvl { display: inline-block; min-width: 38px }
+
+/* 收合式說明:卡片標題下「▸ 說明」,預設關,點開才看 → 介面更乾淨少滾 */
+details.note > summary { cursor: pointer; font-size: 12px; color: var(--muted, #888); list-style: none; user-select: none; margin: 2px 0 4px }
+details.note > summary::-webkit-details-marker { display: none }
+details.note > summary::before { content: '▸ '; }
+details.note[open] > summary::before { content: '▾ '; }
+details.note[open] > summary { color: var(--text-dim, #aaa) }
