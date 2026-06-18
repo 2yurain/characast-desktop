@@ -682,27 +682,35 @@ function _shortForOverlay(t) {
   return (p > 30 ? cut.slice(0, p + 1) : cut.trim()) + '…';
 }
 
-// Float32 chunks(任意 sr)→ 16k mono → WAV ArrayBuffer
-function _encodeWav16k(chunks, srcRate) {
+// Float32 chunks(任意 sr)→ 16-bit PCM mono WAV ArrayBuffer。
+// targetSr 省略 / >= srcRate → 不降頻(保真,給回放用);給 16000 → 降頻(送 AI 用,夠判音準又小)
+function _encodeWav(chunks, srcRate, targetSr) {
   let total = 0; for (const c of chunks) total += c.length;
   const merged = new Float32Array(total);
   let o = 0; for (const c of chunks) { merged.set(c, o); o += c.length; }
-  // 降頻(平均法,抗 aliasing)
-  const ratio = srcRate / SINGCOACH_TARGET_SR;
-  const outLen = Math.floor(merged.length / ratio);
-  const out = new Int16Array(outLen);
-  for (let i = 0; i < outLen; i++) {
-    const start = Math.floor(i * ratio), end = Math.min(merged.length, Math.floor((i + 1) * ratio));
-    let s = 0, n = 0; for (let j = start; j < end; j++) { s += merged[j]; n++; }
-    const v = n ? s / n : 0;
-    out[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
+  let out, sr;
+  if (targetSr && targetSr < srcRate) {
+    sr = targetSr;
+    const ratio = srcRate / targetSr;            // 降頻(平均法,抗 aliasing)
+    const outLen = Math.floor(merged.length / ratio);
+    out = new Int16Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const start = Math.floor(i * ratio), end = Math.min(merged.length, Math.floor((i + 1) * ratio));
+      let s = 0, n = 0; for (let j = start; j < end; j++) { s += merged[j]; n++; }
+      const v = n ? s / n : 0;
+      out[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767)));
+    }
+  } else {
+    sr = srcRate;                                 // 原始取樣率,不降頻(回放才不會悶)
+    out = new Int16Array(merged.length);
+    for (let i = 0; i < merged.length; i++) out[i] = Math.max(-32768, Math.min(32767, Math.round(merged[i] * 32767)));
   }
   // WAV header(16-bit PCM mono)
   const buf = new ArrayBuffer(44 + out.length * 2), dv = new DataView(buf);
   const ws = (off, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(off + i, str.charCodeAt(i)); };
   ws(0, 'RIFF'); dv.setUint32(4, 36 + out.length * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
   dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
-  dv.setUint32(24, SINGCOACH_TARGET_SR, true); dv.setUint32(28, SINGCOACH_TARGET_SR * 2, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true);
   dv.setUint16(32, 2, true); dv.setUint16(34, 16, true); ws(36, 'data'); dv.setUint32(40, out.length * 2, true);
   for (let i = 0; i < out.length; i++) dv.setInt16(44 + i * 2, out[i], true);
   return buf;
@@ -760,7 +768,7 @@ async function _singCoachStart() {
         sysStream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
         sysStream.getVideoTracks().forEach((t) => t.stop());   // 只要音訊,畫面立刻丟掉
         if (sysStream.getAudioTracks().length) {
-          const sysGain = ctx.createGain(); sysGain.gain.value = 0.4;
+          const sysGain = ctx.createGain(); sysGain.gain.value = 0.75;   // 伴奏聲量(0.4→0.75,使用者反映太小)
           ctx.createMediaStreamSource(sysStream).connect(sysGain).connect(proc);
         } else { sysStream.getTracks().forEach((t) => t.stop()); sysStream = null; }
       } catch (e) { setSingCoachHint('(抓不到系統音,改只錄人聲)'); sysStream = null; }
@@ -796,10 +804,11 @@ async function _singCoachStop() {
     _setSingBtns('🎙️ 開始錄音', false);
     return;
   }
-  // 編碼 + 暫存,顯示回放與送出按鈕(此時還沒上傳)
-  _heldWav = _encodeWav16k(rec.chunks, rec.srcRate);
+  // 編碼 + 暫存:送 AI 用 16k(夠判音準、payload 小);回放用原始取樣率(音樂才不會悶)
+  _heldWav = _encodeWav(rec.chunks, rec.srcRate, SINGCOACH_TARGET_SR);
+  const playWav = _encodeWav(rec.chunks, rec.srcRate);   // 不降頻
   if (_heldUrl) { try { URL.revokeObjectURL(_heldUrl); } catch {} }
-  _heldUrl = URL.createObjectURL(new Blob([_heldWav], { type: 'audio/wav' }));
+  _heldUrl = URL.createObjectURL(new Blob([playWav], { type: 'audio/wav' }));
   const au = $('coach-audio'); if (au) au.src = _heldUrl;
   const pb = $('coach-playback'); if (pb) pb.style.display = '';
   const sendBtn = $('coach-send'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 送給 AI 聽'; }
