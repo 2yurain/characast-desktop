@@ -197,6 +197,17 @@
         <select id="mic-device"><option value="">預設麥克風</option></select>
       </div>
 
+      <!-- 🔊 AI 語音(TTS 總開關)-->
+      <div class="howto" style="margin-top:18px">
+        <div class="howto-title">🔊 AI 語音</div>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">AI 開口講話 / 唸 TTS 的總開關,也驅動 VTuber 嘴型。瀏覽器規定首次互動才解鎖,你開著的話,進來點任何地方就會生效。</p></details>
+        <label class="check-row"><input id="tts-toggle" type="checkbox"> <span>讓 AI 出聲</span></label>
+        <div class="form-actions" style="margin-top:8px">
+          <button class="ghost" id="tts-test">測試播放</button>
+          <span class="hint" id="tts-status" style="margin-left:8px">—</span>
+        </div>
+      </div>
+
       <!-- 🎬 OBS 連線(Host / Port / 密碼)-->
       <div class="howto" style="margin-top:18px">
         <div class="howto-title">🎬 OBS 連線</div>
@@ -305,13 +316,6 @@
     </div><!-- /tab-scroll -->
 
     <div class="footer">
-    <!-- 語音(TTS)控制 -->
-    <div class="tts-bar form-actions">
-      <button id="tts-enable">🔊 點一下啟用語音</button>
-      <button class="ghost" id="tts-test">測試播放</button>
-      <span class="hint" id="tts-status">瀏覽器政策:首次需點一下才允許播音</span>
-    </div>
-
     <!-- Log(可折疊,預設收起)-->
     <details class="log-section">
       <summary>📜 即時 log</summary>

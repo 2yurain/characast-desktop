@@ -168,6 +168,10 @@ async function fillSettingsForm() {
   // 🎙️ 教練上字幕:還原(無設定 → 預設關,因為會顯示在直播畫面上)
   _coachOverlayOn = s.coachOverlay ? Boolean(s.coachOverlay.enabled) : false;
   paintQuick('qt-coach', '🎙️ 教練上字幕', _coachOverlayOn);
+  // 🔊 AI 語音(設定分頁開關):還原(預設關;開著的話進來點任何地方就解鎖)
+  _ttsEnabled = Boolean(s.voice && s.voice.enabled);
+  if ($('tts-toggle')) $('tts-toggle').checked = _ttsEnabled;
+  const _ttsSt = $('tts-status'); if (_ttsSt) _ttsSt.textContent = _ttsEnabled ? '已開(點任何地方即生效)' : '🔇 已關';
   updateCalUI();
 
   // 帳號 tab:顯示「已配對」狀態
@@ -339,6 +343,7 @@ if (window.speechSynthesis) {
 // Chromium 自動播放政策:speak() 在使用者手勢前會被擋(onerror=not-allowed),且靜默。
 // 任何一次使用者互動就 prime 一發靜音 utterance 解鎖,之後 cloud 推來的才播得出。
 let _ttsUnlocked = false;
+let _ttsEnabled = false;   // 「讓 AI 出聲」總開關(設定分頁,持久化);關 → speak() 直接跳過
 function unlockTts(reason) {
   if (_ttsUnlocked || !window.speechSynthesis) return;
   try {
@@ -347,7 +352,7 @@ function unlockTts(reason) {
     window.speechSynthesis.speak(u);
     _ttsUnlocked = true;
     ttsLog('info', `語音已解鎖(${reason})`);
-    const st = $('tts-status'); if (st) st.textContent = '✓ 語音已啟用';
+    const st = $('tts-status'); if (st && _ttsEnabled) st.textContent = '✓ 已啟用';
   } catch (e) {
     ttsLog('err', `解鎖失敗:${e.message}`);
   }
@@ -408,6 +413,7 @@ function stopWebMouth() {
 }
 
 function speak({ text, voice, rate, pitch }) {
+  if (!_ttsEnabled) return;   // 「讓 AI 出聲」關著 → 不播
   if (!window.speechSynthesis) { ttsLog('err', '不支援 speechSynthesis'); return; }
   if (!text) return;
   if (!_availableVoices.length) refreshVoices();
@@ -466,13 +472,21 @@ window.characast.onTts((msg) => {
 });
 
 // 「🔊 啟用語音」+「測試播放」按鈕
-$('tts-enable')?.addEventListener('click', () => {
-  unlockTts('按鈕');
-  refreshVoices();
-  const names = _availableVoices.slice(0, 4).map((v) => `${v.name}(${v.lang})`).join(', ');
-  ttsLog('info', `可用 voices=${_availableVoices.length}${names ? ' — ' + names + '…' : '(空!沒有語音引擎)'}`);
+$('tts-toggle')?.addEventListener('change', (e) => {
+  _ttsEnabled = !!e.target.checked;
+  window.characast.setSettings({ voice: { enabled: _ttsEnabled } });
+  const st = $('tts-status');
+  if (_ttsEnabled) {
+    unlockTts('開關');
+    refreshVoices();
+    if (st) st.textContent = _ttsUnlocked ? '✓ 已啟用' : '已開(點任何地方即生效)';
+  } else {
+    try { window.speechSynthesis.cancel(); } catch {}
+    if (st) st.textContent = '🔇 已關';
+  }
 });
 $('tts-test')?.addEventListener('click', () => {
+  if (!_ttsEnabled) { const st = $('tts-status'); if (st) st.textContent = '先把上面開關打開'; return; }
   speak({ text: '凌小夏語音測試,主人聽得到嗎?', rate: 1.0, pitch: 1.0 });
 });
 
