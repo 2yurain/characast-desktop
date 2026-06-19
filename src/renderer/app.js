@@ -950,6 +950,10 @@ document.addEventListener('click', () => { if (_resoCtx && _resoCtx.state === 's
 // transformers.js 從 jsdelivr 載、模型從 HuggingFace 下載(首次)→ CSP 已放行這兩個來源。
 // 整體往上一級提升準度:低=base、中=small、高=large-v3-turbo(近 large 準度、turbo 速度;RTX 等級才建議)
 const STT_MODELS = { low: 'Xenova/whisper-base', medium: 'Xenova/whisper-small', high: 'onnx-community/whisper-large-v3-turbo' };
+// 每級的精度:base/small fp32 沒問題;large-v3-turbo 用 fp32 會 ~1.6GB + 常爆 WebGPU 緩衝 → 載入失敗。
+// turbo 的官方 WebGPU 配置 = encoder fp16 + decoder q4(可載、快、準度幾乎不掉)。wasm 退路用 q4。
+const STT_DTYPE = { low: 'fp32', medium: 'fp32', high: { encoder_model: 'fp16', decoder_model_merged: 'q4' } };
+const STT_DTYPE_WASM = { low: 'fp32', medium: 'fp32', high: 'q4' };
 
 // whisper 中文偏簡體 → 轉繁(zh-TW 產品 + 工具關鍵字是繁體,字對上判斷才準)。懶載 opencc,失敗就維持原樣。
 let _s2tConv = null, _s2tTried = false;
@@ -990,13 +994,13 @@ async function startStt(tier) {
     // /+esm = jsdelivr 打包好的瀏覽器版 ESM(沒這個尾段會拿到無法載入的原始碼)
     const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.6/+esm');
     env.allowLocalModels = false;                 // 只從 HF 抓,不找本機路徑
-    // 先試 WebGPU(吃 GPU),失敗(無 WebGPU)再退回 wasm(CPU)
+    // 先試 WebGPU(吃 GPU),失敗(無 WebGPU / 模型太大爆緩衝)再退回 wasm(CPU)
+    const dtype = STT_DTYPE[tier] || 'fp32';
     try {
-      // fp32:5080 記憶體夠,fp32 數值最穩(fp16 在部分 GPU 會算出 NaN → 卡住/亂碼)
-      _sttTranscriber = await pipeline('automatic-speech-recognition', model, { device: 'webgpu', dtype: 'fp32' });
+      _sttTranscriber = await pipeline('automatic-speech-recognition', model, { device: 'webgpu', dtype });
     } catch (e) {
-      appendLog({ level: 'warn', msg: `STT:WebGPU 不可用,改用 CPU(${e.message})` });
-      _sttTranscriber = await pipeline('automatic-speech-recognition', model, { device: 'wasm' });
+      appendLog({ level: 'warn', msg: `STT:WebGPU 載入失敗,改用 CPU(${e.message})` });
+      _sttTranscriber = await pipeline('automatic-speech-recognition', model, { device: 'wasm', dtype: STT_DTYPE_WASM[tier] || 'fp32' });
     }
 
     // 抓麥(跟歌聲共鳴各開各的;裝置用共用的 #mic-device)
