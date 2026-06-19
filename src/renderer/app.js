@@ -671,7 +671,7 @@ function resoStop() {
 }
 
 // =====================================================
-// 🎙️ AI 歌聲教練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
+// 🎙️ AI 歌唱教練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
 // =====================================================
 const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 300, SINGCOACH_MIN_SECONDS = 4;
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
@@ -724,7 +724,7 @@ function _encodeWav(chunks, srcRate, targetSr) {
 }
 
 function setSingCoachHint(msg) { const h = $('singcoach-hint'); if (h) { h.textContent = msg; h.style.display = msg ? '' : 'none'; } }
-// 唱歌分頁的錄音鈕 + 控制中心的「唱歌教練」兩顆同步(文字 / 禁用)
+// 唱歌分頁的錄音鈕 + 控制中心的「歌唱教練」兩顆同步(文字 / 禁用)
 function _setSingBtns(txt, disabled) {
   for (const id of ['singcoach-btn', 'qt-coachrec']) {
     const b = $(id); if (!b) continue;
@@ -831,7 +831,7 @@ async function _singCoachSend() {
   setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
   try {
     const r = await window.characast.coachSingAudio(_heldWav, ($('coach-song')?.value || '').trim(), ($('coach-question')?.value || '').trim());
-    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌聲教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再按一次送出', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
+    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再按一次送出', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + r.text; result.style.display = ''; }
@@ -903,7 +903,7 @@ function setCoachOverlayOn(on) {
   window.characast.setSettings({ coachOverlay: { enabled: _coachOverlayOn } });
 }
 $('qt-coach')?.addEventListener('click', () => setCoachOverlayOn(!_coachOverlayOn));
-// 控制中心快速「唱歌教練」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
+// 控制中心快速「歌唱教練」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
 $('qt-coachrec')?.addEventListener('click', singCoachToggle);
 
 // 🎵 點唱歌單(桌面端控制 desktopToken;在「唱歌」分頁刷新)

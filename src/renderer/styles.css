@@ -191,7 +191,7 @@ details.howto[open] > summary::after { content: ' ▾' }
 .quick-toggle b { color: var(--text-mute); font-weight: 700 }
 .quick-toggle.on { background: rgba(130, 217, 107, 0.12); border-color: rgba(130, 217, 107, 0.5) }
 .quick-toggle.on b { color: var(--ok) }
-.quick-toggle.action { border-color: var(--accent); color: var(--accent) }   /* 動作型(唱歌教練)*/
+.quick-toggle.action { border-color: var(--accent); color: var(--accent) }   /* 動作型(歌唱教練)*/
 .quick-toggle.action:hover { background: rgba(255, 184, 77, 0.1) }
 
 /* form row / col(設定表單格線) */

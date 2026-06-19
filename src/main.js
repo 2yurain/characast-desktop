@@ -271,7 +271,7 @@ ipcMain.on('coach:overlay', (_e, text) => {
   if (!t || !cloud.isConnected()) return;
   cloud.send({ type: 'coach.feedback', text: t.slice(0, 600) });
 });
-// 歌聲教練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
+// 歌唱教練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
 ipcMain.handle('singing:coachAudio', async (_e, payload) => {
   const wavBuf = payload && payload.wav ? payload.wav : payload;   // 相容舊呼叫(直接傳 buffer)
   const song = (payload && typeof payload.song === 'string') ? payload.song.trim() : '';
@@ -294,10 +294,10 @@ ipcMain.handle('singing:coachAudio', async (_e, payload) => {
     });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-    pushLog({ level: 'info', msg: `歌聲教練:上傳 ${Math.round((wavBuf.byteLength || 0) / 1024)}KB → ${j.ok ? (j.song ? '《' + j.song + '》' : '回饋已產生') : '無回饋(' + (j.reason || '?') + ')'}` });
+    pushLog({ level: 'info', msg: `歌唱教練:上傳 ${Math.round((wavBuf.byteLength || 0) / 1024)}KB → ${j.ok ? (j.song ? '《' + j.song + '》' : '回饋已產生') : '無回饋(' + (j.reason || '?') + ')'}` });
     return j;
   } catch (e) {
-    pushLog({ level: 'err', msg: `歌聲教練上傳失敗:${e.message}` });
+    pushLog({ level: 'err', msg: `歌唱教練上傳失敗:${e.message}` });
     return { ok: false, error: e.message };
   }
 });
@@ -451,7 +451,7 @@ app.whenReady().then(() => {
   // renderer 跑在 sandbox,getUserMedia 仍要 main 這關放行。
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
-  // 歌聲教練「混音」用:讓 renderer 抓系統音(伴奏)做 loopback,不跳螢幕選擇器。
+  // 歌唱教練「混音」用:讓 renderer 抓系統音(伴奏)做 loopback,不跳螢幕選擇器。
   // 只在 renderer 呼叫 getDisplayMedia 時觸發;我們只取 audio: 'loopback'(video 拿來占位,renderer 立刻丟掉)。
   try {
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {

@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld('characast', {
   sendStreamerSpeech: (text) => ipcRenderer.send('streamer:speech', text),
   // 歌唱音準:本場累計聚合 → main → cloud(成長報告 B 維度;低頻)
   sendPitchStats: (stats) => ipcRenderer.send('streamer:pitch', stats),
-  // 歌聲教練:上傳一段清唱 WAV(ArrayBuffer)→ main HTTP → cloud Gemini,回 { ok, text, song }
+  // 歌唱教練:上傳一段清唱 WAV(ArrayBuffer)→ main HTTP → cloud Gemini,回 { ok, text, song }
   coachSingAudio: (wav, song, question) => ipcRenderer.invoke('singing:coachAudio', { wav, song, question }),
   // 教練回饋 → main → cloud → 共鳴 overlay 顯示(「教練字幕」開關開時才送)
   coachToOverlay: (text) => ipcRenderer.send('coach:overlay', text),
