@@ -677,6 +677,7 @@ const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 300, SINGCOACH_MIN_SE
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
 let _heldWav = null;   // 錄完暫存在本地的 WAV(ArrayBuffer);沒按送出/重錄前一直留著(失敗可重送、不用重錄)
 let _heldUrl = null;   // 上面那段的 blob URL(給 <audio> 回放)
+let _heldMix = false;  // 這段錄音有沒有真的混入伴奏 → 送雲時帶上(沒伴奏雲端就不評音準)
 let _coachOverlayOn = false;   // 「教練字幕」:開 → 教練回饋推到共鳴 overlay 顯示
 let _micGain = 2.0, _sysGain = 0.5;   // 教練錄音的人聲 / 伴奏增益(滑桿可調、存設定;每人音訊來源不同)
 
@@ -737,7 +738,7 @@ const _mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 // 清掉暫存的錄音(換新錄音 / 重錄時),順手釋放 blob URL
 function _clearHeldWav() {
-  _heldWav = null;
+  _heldWav = null; _heldMix = false;
   if (_heldUrl) { try { URL.revokeObjectURL(_heldUrl); } catch {} _heldUrl = null; }
   const pb = $('coach-playback'); if (pb) pb.style.display = 'none';
   const au = $('coach-audio'); if (au) { try { au.pause(); } catch {} au.removeAttribute('src'); }
@@ -841,6 +842,7 @@ async function _singCoachStop() {
     return;
   }
   try { await rec.ctx.close(); } catch {}
+  _heldMix = !!rec.sysStream;   // 真的有收到伴奏才算(勾了但抓不到系統音 = 還是清唱)
   // 編碼 + 暫存:送 AI 用 16k(夠判音準、payload 小);回放用原始取樣率(音樂才不會悶)
   _heldWav = _encodeWav(chunks, srcRate, SINGCOACH_TARGET_SR);
   const playWav = _encodeWav(chunks, srcRate);   // 不降頻
@@ -860,7 +862,7 @@ async function _singCoachSend() {
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '⏳ 送出中…'; }
   setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
   try {
-    const r = await window.characast.coachSingAudio(_heldWav, ($('coach-song')?.value || '').trim(), ($('coach-question')?.value || '').trim());
+    const r = await window.characast.coachSingAudio(_heldWav, ($('coach-song')?.value || '').trim(), ($('coach-question')?.value || '').trim(), _heldMix);
     const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再按一次送出', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');

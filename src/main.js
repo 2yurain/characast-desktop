@@ -276,6 +276,7 @@ ipcMain.handle('singing:coachAudio', async (_e, payload) => {
   const wavBuf = payload && payload.wav ? payload.wav : payload;   // 相容舊呼叫(直接傳 buffer)
   const song = (payload && typeof payload.song === 'string') ? payload.song.trim() : '';
   const question = (payload && typeof payload.question === 'string') ? payload.question.trim() : '';
+  const mix = Boolean(payload && payload.mix);   // 有沒有混伴奏 → 雲端決定要不要評音準
   const token = settings.get('desktopToken');
   const httpsUrl = settings.get('cloudHttpsUrl');
   const chk = settings.validateCloudUrl(httpsUrl, { kind: 'https' });
@@ -286,6 +287,7 @@ ipcMain.handle('singing:coachAudio', async (_e, payload) => {
     const parts = [];
     if (song) parts.push('song=' + encodeURIComponent(song.slice(0, 60)));
     if (question) parts.push('q=' + encodeURIComponent(question.slice(0, 200)));
+    if (mix) parts.push('mix=1');
     const qs = parts.length ? '?' + parts.join('&') : '';
     const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/singing-coach${qs}`, {
       method: 'POST',
