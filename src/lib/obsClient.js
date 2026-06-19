@@ -171,7 +171,13 @@ class ObsClient extends EventEmitter {
   async saveReplay(category, requester) {
     if (!this.connected || !this.obs) return { ok: false, reason: 'obs 未連' };
     try {
-      await this.startReplayBuffer(); // 確保在跑(開播時通常已自動起)
+      // 緩衝沒在跑 → 不要冷啟動後硬存(裡面是空的、必失敗)。先幫它起來,叫使用者等幾秒再喊。
+      const st = await this.obs.call('GetReplayBufferStatus').catch(() => null);
+      if (st && !st.outputActive) {
+        await this.startReplayBuffer();
+        this.emit('log', { level: 'warn', msg: 'obs:重播緩衝剛啟動,要先跑幾秒累積內容,等一下再喊一次「剪精華」' });
+        return { ok: false, reason: 'replay_warming', msg: '重播緩衝剛開始跑,過幾秒再喊一次就剪得到' };
+      }
       await this.obs.call('SaveReplayBuffer');
       let savedPath = null;
       try { const r = await this.obs.call('GetLastReplayBufferReplay'); savedPath = r?.savedReplayPath || null; } catch { /* 舊版可能沒這 request */ }
@@ -326,6 +332,9 @@ class ObsClient extends EventEmitter {
     this.emit('log', { level: 'info', msg: 'obs:連線成功 ✓' });
     this.emit('status', this.getStatus());
     this.emit('connected');
+    // 一連上就把重播緩衝跑起來(不只開播才起)→ 隨時喊「剪精華」都有累積好的內容可剪。
+    // (OBS 沒啟用重播緩衝的話會 warn,不影響其他功能。)
+    this.startReplayBuffer().catch(() => {});
 
     // 訂閱事件
     obs.on('InputMuteStateChanged', (data) => {
