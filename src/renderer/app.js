@@ -681,6 +681,16 @@ let _heldMix = false;  // 這段錄音有沒有真的混入伴奏 → 送雲時�
 let _coachOverlayOn = false;   // 「教練字幕」:開 → 教練回饋推到共鳴 overlay 顯示
 let _micGain = 2.0, _sysGain = 0.5;   // 教練錄音的人聲 / 伴奏增益(滑桿可調、存設定;每人音訊來源不同)
 
+// 面板顯示用:去開頭寒暄句 + 清掉 markdown 符號(** # )、條列轉 •、收多餘空行(div 用 pre-wrap 保留換行)
+function _fmtCoach(t) {
+  return String(t || '').trim()
+    .replace(/^[^。\n!！]*(你好|哈囉)[^。\n!！]*[。!！]\s*/, '')   // 去開頭「…你好…」寒暄句
+    .replace(/\*\*(.+?)\*\*/g, '$1')          // **粗體** → 去星號
+    .replace(/(^|\n)\s*#{1,6}\s*/g, '$1')     // # 標題 → 去井號
+    .replace(/(^|\n)\s*[*+-]\s+/g, '$1• ')    // - / * 項目 → •
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 // 直播字幕只給觀眾一瞥(完整回饋留面板給主播看):去 markdown、取前 1~2 句、上限 ~90 字
 function _shortForOverlay(t) {
   let s = String(t || '').replace(/[#*>`_~]/g, '').replace(/\s+/g, ' ').trim();
@@ -866,7 +876,7 @@ async function _singCoachSend() {
     const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再按一次送出', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
-      if (result) { result.textContent = '🎙️ ' + r.text; result.style.display = ''; }
+      if (result) { result.textContent = '🎙️ ' + _fmtCoach(r.text); result.style.display = ''; }
       if (_coachOverlayOn) window.characast.coachToOverlay?.(_shortForOverlay(r.text));   // 開「教練字幕」→ 只推精簡一瞥(完整留面板)
       // 成功也保留錄音與回放,主播可以邊聽錄音邊看建議;要重來就按「重錄」
     } else {
