@@ -761,13 +761,16 @@ async function _singCoachStart() {
       echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     if (ctx.state === 'suspended') await ctx.resume().catch(() => {});
-    const proc = ctx.createScriptProcessor(4096, 1, 1);
-    const mute = ctx.createGain(); mute.gain.value = 0;   // 靜音接 destination,讓 onaudioprocess 觸發又不回授
-    const chunks = [];
-    proc.onaudioprocess = (ev) => { chunks.push(new Float32Array(ev.inputBuffer.getChannelData(0))); };
+    // 混音匯流排 → MediaRecorder(背景錄,不佔主執行緒 → 不會像 ScriptProcessor 那樣掉拍/斷)
+    const mixDest = ctx.createMediaStreamDestination();
+    // 限幅器:吃掉增益後的峰值,避免硬切削波(那會變「電子音」);只壓真的會爆的部分,平時透明
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -1.5; limiter.knee.value = 0; limiter.ratio.value = 20;
+    limiter.attack.value = 0.003; limiter.release.value = 0.1;
+    limiter.connect(mixDest);
     // 人聲(mic)—— 增益吃滑桿值(錄音中拉也即時生效,見 _singRec.micGainNode)
     const micGainNode = ctx.createGain(); micGainNode.gain.value = _micGain;
-    ctx.createMediaStreamSource(stream).connect(micGainNode).connect(proc);
+    ctx.createMediaStreamSource(stream).connect(micGainNode).connect(limiter);
     // 可選:混入系統音(伴奏)當音準參考 —— 勾「一起收伴奏」才抓;比例由使用者滑桿決定
     let sysStream = null, sysGainNode = null;
     if ($('coach-mix')?.checked) {
@@ -776,12 +779,18 @@ async function _singCoachStart() {
         sysStream.getVideoTracks().forEach((t) => t.stop());   // 只要音訊,畫面立刻丟掉
         if (sysStream.getAudioTracks().length) {
           sysGainNode = ctx.createGain(); sysGainNode.gain.value = _sysGain;
-          ctx.createMediaStreamSource(sysStream).connect(sysGainNode).connect(proc);
+          ctx.createMediaStreamSource(sysStream).connect(sysGainNode).connect(limiter);
         } else { sysStream.getTracks().forEach((t) => t.stop()); sysStream = null; }
       } catch (e) { setSingCoachHint('(抓不到系統音,改只錄人聲)'); sysStream = null; }
     }
-    proc.connect(mute); mute.connect(ctx.destination);
-    _singRec = { ctx, stream, sysStream, proc, chunks, srcRate: ctx.sampleRate, t0: Date.now(), tick: null, micGainNode, sysGainNode };
+    // 用 opus 錄(瀏覽器背景編碼);停止後再解碼成乾淨 PCM
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+      .find((t) => window.MediaRecorder?.isTypeSupported?.(t)) || '';
+    const mrec = new MediaRecorder(mixDest.stream, mime ? { mimeType: mime } : undefined);
+    const blobs = [];
+    mrec.ondataavailable = (e) => { if (e.data && e.data.size) blobs.push(e.data); };
+    mrec.start(1000);   // 每秒切一塊,穩定
+    _singRec = { ctx, stream, sysStream, mrec, blobs, mime, t0: Date.now(), tick: null, micGainNode, sysGainNode };
     _setSingBtns('⏹ 停止', false);
     _singRec.tick = setInterval(() => {
       const s = Math.floor((Date.now() - _singRec.t0) / 1000);
@@ -796,24 +805,45 @@ async function _singCoachStart() {
   }
 }
 
-// 停止 = 收尾錄音 → 編碼成 WAV → 暫存在本地等使用者回放 / 按送出(不自動上傳)
+// 停止 = 停 MediaRecorder → 解碼成乾淨 PCM → 編碼 WAV → 暫存等回放 / 送出(不自動上傳)
 async function _singCoachStop() {
   const rec = _singRec; if (!rec) return;
   _singRec = null;
   if (rec.tick) clearInterval(rec.tick);
-  try { rec.proc.disconnect(); } catch {}
+  const secs = Math.round((Date.now() - rec.t0) / 1000);
+  // 停錄音,等最後一塊資料 flush 完才拿到完整 blob
+  const blob = await new Promise((resolve) => {
+    try {
+      rec.mrec.onstop = () => resolve(new Blob(rec.blobs, { type: rec.mime || 'audio/webm' }));
+      if (rec.mrec.state !== 'inactive') rec.mrec.stop();
+      else resolve(new Blob(rec.blobs, { type: rec.mime || 'audio/webm' }));
+    } catch { resolve(new Blob(rec.blobs, { type: rec.mime || 'audio/webm' })); }
+  });
   try { rec.stream.getTracks().forEach((t) => t.stop()); } catch {}
   try { if (rec.sysStream) rec.sysStream.getTracks().forEach((t) => t.stop()); } catch {}
-  try { await rec.ctx.close(); } catch {}
-  const secs = Math.round((Date.now() - rec.t0) / 1000);
+
   if (secs < SINGCOACH_MIN_SECONDS) {
+    try { await rec.ctx.close(); } catch {}
     setSingCoachHint(`✗ 太短了(只 ${secs}s),多唱幾句再停`);
     _setSingBtns('🎙️ 開始錄音', false);
     return;
   }
+  // 瀏覽器解碼 opus → 乾淨 PCM(沒有 ScriptProcessor 那種掉拍/雜訊)
+  let chunks, srcRate;
+  try {
+    const audioBuf = await rec.ctx.decodeAudioData(await blob.arrayBuffer());
+    srcRate = audioBuf.sampleRate;
+    chunks = [audioBuf.getChannelData(0)];   // 取單聲道
+  } catch (e) {
+    try { await rec.ctx.close(); } catch {}
+    setSingCoachHint('✗ 錄音解碼失敗:' + (e.message || e));
+    _setSingBtns('🎙️ 開始錄音', false);
+    return;
+  }
+  try { await rec.ctx.close(); } catch {}
   // 編碼 + 暫存:送 AI 用 16k(夠判音準、payload 小);回放用原始取樣率(音樂才不會悶)
-  _heldWav = _encodeWav(rec.chunks, rec.srcRate, SINGCOACH_TARGET_SR);
-  const playWav = _encodeWav(rec.chunks, rec.srcRate);   // 不降頻
+  _heldWav = _encodeWav(chunks, srcRate, SINGCOACH_TARGET_SR);
+  const playWav = _encodeWav(chunks, srcRate);   // 不降頻
   if (_heldUrl) { try { URL.revokeObjectURL(_heldUrl); } catch {} }
   _heldUrl = URL.createObjectURL(new Blob([playWav], { type: 'audio/wav' }));
   const au = $('coach-audio'); if (au) au.src = _heldUrl;
