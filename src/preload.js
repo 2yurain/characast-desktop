@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('characast', {
   sendPitchStats: (stats) => ipcRenderer.send('streamer:pitch', stats),
   // 歌唱教練:上傳一段清唱 WAV(ArrayBuffer)→ main HTTP → cloud Gemini,回 { ok, text, song }
   coachSingAudio: (wav, song, question, mix) => ipcRenderer.invoke('singing:coachAudio', { wav, song, question, mix }),
+  // 歷史歌唱教練評語(回看不用重錄)→ { ok, items:[{song,text,date}] }
+  coachHistory: () => ipcRenderer.invoke('singing:coachHistory'),
   // 點唱歌單:桌面端控制(desktopToken)→ 回狀態 { enabled, nowSinging, count, queue }
   songQueueGet: () => ipcRenderer.invoke('songqueue:get'),
   songQueueAction: (action) => ipcRenderer.invoke('songqueue:action', action),

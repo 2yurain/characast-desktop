@@ -265,6 +265,20 @@ async function _songQueueReq(method, body) {
 ipcMain.handle('songqueue:get', () => _songQueueReq('GET'));
 ipcMain.handle('songqueue:action', (_e, action) => _songQueueReq('POST', { action: String(action || '') }));
 
+// 歷史歌唱教練評語(GET;desktopToken)→ 回看不用重錄
+ipcMain.handle('singing:coachHistory', async () => {
+  const token = settings.get('desktopToken');
+  const httpsUrl = settings.get('cloudHttpsUrl');
+  if (!token || !settings.validateCloudUrl(httpsUrl, { kind: 'https' }).ok) return { ok: false, items: [] };
+  try {
+    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/coach-history`, {
+      headers: { 'x-desktop-token': token },
+    });
+    const j = await res.json();
+    return res.ok ? j : { ok: false, items: [] };
+  } catch { return { ok: false, items: [] }; }
+});
+
 // 歌唱教練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
 ipcMain.handle('singing:coachAudio', async (_e, payload) => {
   const wavBuf = payload && payload.wav ? payload.wav : payload;   // 相容舊呼叫(直接傳 buffer)

@@ -864,6 +864,7 @@ async function _singCoachSend() {
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + _fmtCoach(r.text); result.style.display = ''; }
+      if ($('coach-hist-wrap')?.open) loadCoachHistory();   // 歷史評語若展開著 → 把這次也刷進去
       // 評語只留在這張卡;要上直播畫面就直接視窗擷取「歌唱教練」這張卡(不另開 overlay,少一份設定)
       // 成功也保留錄音與回放,主播可以邊聽錄音邊看建議;要重來就按「重錄」
     } else {
@@ -902,6 +903,27 @@ $('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?
 $('singcoach-btn')?.addEventListener('click', singCoachToggle);
 $('coach-send')?.addEventListener('click', _singCoachSend);
 $('coach-rerecord')?.addEventListener('click', () => { if (!_singRec) _singCoachStart(); });
+
+// 📜 歷史評語:展開時才載入(整段收折、每首再收折)→ 回看不用重錄
+async function loadCoachHistory() {
+  const box = $('coach-hist'); if (!box) return;
+  box.innerHTML = '<div class="hint" style="margin:0">載入中…</div>';
+  try {
+    const r = await window.characast.coachHistory();
+    const items = (r && r.items) || [];
+    if (!items.length) { box.innerHTML = '<div class="hint" style="margin:0">還沒有評語紀錄(送出一次教練評語就會留下)</div>'; return; }
+    const esc = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    box.innerHTML = items.map((it) => {
+      const d = it.date ? new Date(it.date) : null;
+      const ds = d ? `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
+      const song = (it.song && it.song !== '(未命名)') ? `《${esc(it.song)}》` : '(未命名)';
+      return `<details style="margin-bottom:6px;border:1px solid var(--line,#2c2230);border-radius:8px;padding:6px 10px">`
+        + `<summary style="cursor:pointer;font-size:13px;color:var(--text-dim,#aaa)">${song} <span style="opacity:.55">· ${ds}</span></summary>`
+        + `<div style="margin-top:6px;white-space:pre-wrap;line-height:1.8;font-size:14px">🎙️ ${esc(_fmtCoach(it.text))}</div></details>`;
+    }).join('');
+  } catch (e) { box.textContent = '載入失敗:' + (e.message || e); }
+}
+$('coach-hist-wrap')?.addEventListener('toggle', (e) => { if (e.target.open) loadCoachHistory(); });
 
 // 🎚️ 人聲 / 伴奏增益滑桿:把目前值寫進滑桿 + 數字標籤(載入設定 / 初始時)
 function _applyCoachLevelUI() {
