@@ -92,16 +92,16 @@
         <div id="sq-list" style="margin-top:10px;font-size:13px;line-height:1.9;color:var(--text,#eee)"></div>
       </div>
 
-      <!-- 🎙️ AI 歌唱教練:錄一段唱上雲(Gemini 聽,伴奏可)→ 回饋(需 Pro+ 與 cloud 已連線)-->
+      <!-- 🎙️ 歌唱教練:錄一段唱上雲(Gemini 聽,伴奏可)→ 回饋(需 Pro+ 與 cloud 已連線)-->
       <div class="howto" style="margin-top:18px">
-        <div class="howto-title">🎙️ AI 歌唱教練</div>
-        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">按「開始」唱、唱到想停(例如唱完一段副歌)再按「停止並送出」→ AI 聽 → 只評這一次(不跟上次比,避免亂掰)<br><b>開伴奏唱也可以</b> —— 而且伴奏讓 mic 收得到的話,AI 反而更能判音準(對不對得上和聲);想要乾淨人聲就把伴奏走耳機<br>只在你送出才上傳,聽完即丟、不保存音檔;上限 5 分鐘</p></details>
+        <div class="howto-title">🎙️ 歌唱教練</div>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">按「開始」唱、唱到想停(例如唱完一段副歌)再按「停止並送出」→ 聽完只評這一次(不跟上次比,避免亂掰)<br><b>開伴奏唱也可以</b> —— 而且伴奏讓 mic 收得到的話,反而更能判音準(對不對得上和聲);想要乾淨人聲就把伴奏走耳機<br>只在你送出才上傳,聽完即丟、不保存音檔;上限 5 分鐘</p></details>
         <input id="coach-question" type="text" maxlength="120" placeholder="想問教練什麼?(留空=整體聽聽)例:我高音怎麼樣?" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <input id="coach-song" type="text" maxlength="60" placeholder="這次唱哪首(留空=用點唱清單那首)" style="width:100%;margin-bottom:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
-        <!-- 📝 歌詞:想精準對照歌詞、不聽錯字就自己填(任何歌都行;填一次按歌名記住,下次自動帶入)。不填 = AI 純聽,可能聽錯字 -->
+        <!-- 📝 歌詞:想精準對照歌詞、不聽錯字就自己填(任何歌都行;填一次按歌名記住,下次自動帶入)。不填 = 純靠聽,可能聽錯字 -->
         <details class="note" id="coach-lyr-wrap" style="margin-bottom:8px">
           <summary>📝 歌詞(想精準對照歌詞、不聽錯字 → 請自行填入)</summary>
-          <textarea id="coach-lyrics" rows="4" placeholder="貼上這首的歌詞 → AI 對照著聽、不會把字聽錯(不填的話會純靠聽,可能聽錯字)。填一次會記住,下次唱同一首自動帶入,不用再貼。" style="width:100%;margin-top:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;resize:vertical"></textarea>
+          <textarea id="coach-lyrics" rows="4" placeholder="貼上這首的歌詞 → 對照著聽、不會把字聽錯(不填的話會純靠聽,可能聽錯字)。填一次會記住,下次唱同一首自動帶入,不用再貼。" style="width:100%;margin-top:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;resize:vertical"></textarea>
           <div class="hint" id="coach-lyr-hint" style="margin-top:4px"></div>
         </details>
         <label class="check-row" style="margin-bottom:8px"><input id="coach-mix" type="checkbox"> <span>一起收伴奏(系統音)</span></label>
@@ -200,7 +200,7 @@
       <!-- 🎤 麥克風(共用輸入):共鳴 / 教練 / 聽你說話 都吃它 -->
       <div class="howto">
         <div class="howto-title">🎤 麥克風裝置(共用)</div>
-        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">先選你實況用的麥克風<br>「歌聲共鳴」「AI 歌唱教練」和進階的「AI 聽你說話」都會用這支</p></details>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">先選你實況用的麥克風<br>「歌聲共鳴」「歌唱教練」和進階的「AI 聽你說話」都會用這支</p></details>
         <select id="mic-device"><option value="">預設麥克風</option></select>
       </div>
 

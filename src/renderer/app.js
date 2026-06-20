@@ -668,7 +668,7 @@ function resoStop() {
 }
 
 // =====================================================
-// 🎙️ AI 歌唱教練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
+// 🎙️ 歌唱教練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
 // =====================================================
 const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 300, SINGCOACH_MIN_SECONDS = 4;
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
@@ -861,14 +861,14 @@ async function _singCoachSend() {
   if (!_heldWav) { setSingCoachHint('還沒有錄音,先按「開始錄音」'); return; }
   const result = $('singcoach-result'), sendBtn = $('coach-send');
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '⏳ 送出中…'; }
-  setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
+  setSingCoachHint('⏳ 上傳中…(約 10~20 秒)');
   try {
     const songVal = ($('coach-song')?.value || '').trim();
     const lyrVal = ($('coach-lyrics')?.value || '').trim();
     // 有填歌詞 + 有歌名 → 先存(雲端教練會自動撈來對照),之後同一首免再貼
     if (songVal && lyrVal) { try { await window.characast.songLyricsSave(songVal, lyrVal); } catch {} }
     const r = await window.characast.coachSingAudio(_heldWav, songVal, ($('coach-question')?.value || '').trim(), _heldMix);
-    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再按一次送出', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
+    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: '沒給出回饋,再按一次送出', aux_budget: '今日歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + _fmtCoach(r.text); result.style.display = ''; }
