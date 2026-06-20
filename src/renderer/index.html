@@ -197,10 +197,10 @@
 
     <!-- Tab: 帳號 -->
     <div class="tab-pane cards" data-tab="account">
-      <!-- 🎤 麥克風(共用輸入):共鳴 / 教練 / 聽你說話 都吃它 -->
+      <!-- 🎤 麥克風(共用輸入):共鳴 / 教練 / AI 聽覺 都吃它 -->
       <div class="howto">
         <div class="howto-title">🎤 麥克風裝置(共用)</div>
-        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">先選你實況用的麥克風<br>「歌聲共鳴」「歌唱教練」和進階的「AI 聽你說話」都會用這支</p></details>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">先選你實況用的麥克風<br>「歌聲共鳴」「歌唱教練」和進階的「AI 聽覺」都會用這支</p></details>
         <select id="mic-device"><option value="">預設麥克風</option></select>
       </div>
 
@@ -279,22 +279,22 @@
 
     <!-- Tab: 進階 -->
     <div class="tab-pane" data-tab="advanced">
-      <!-- 🧠 讓 AI 聽你說話(本地 whisper STT,WebGPU)-->
+      <!-- 🧠 AI 聽覺(本地 whisper STT,WebGPU)-->
       <div class="howto">
-        <div class="howto-title">🧠 讓 AI 聽你說話(語音辨識)</div>
+        <div class="howto-title">🧠 AI 聽覺(語音辨識)</div>
         <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">這台會用 GPU 本地辨識「⚙️ 設定」分頁選的麥克風<br>只把逐字短文字當脈絡送上雲,不傳聲音檔、不存逐字稿</p></details>
         <label class="check-row">
-          <input id="stt-enabled" type="checkbox"> <span>讓 AI 聽你說話</span>
+          <input id="stt-enabled" type="checkbox"> <span>AI 聽覺</span>
         </label>
         <div class="hint" id="stt-hint" style="margin-top:6px">開啟後,還需後台「🧠 AI 感知」也開「聽得到主播」才會上工</div>
       </div>
 
-      <!-- 🖼️ 讓 AI 看畫面(差異閘 + 本地 CLIP 場景分類)-->
+      <!-- 🖼️ AI 視覺(差異閘 + 本地 CLIP 場景分類)-->
       <div class="howto" style="margin-top:18px">
-        <div class="howto-title">🖼️ 讓 AI 看畫面(場景感知)</div>
+        <div class="howto-title">🖼️ AI 視覺(場景感知)</div>
         <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">需 OBS 已連線。這台會定時截「目前場景」用 GPU 本地判斷畫面在幹嘛(團戰/聊天/唱歌…)<br>只把短描述當脈絡送上雲,不傳畫面圖檔</p></details>
         <label class="check-row">
-          <input id="vision-enabled" type="checkbox"> <span>讓 AI 看畫面</span>
+          <input id="vision-enabled" type="checkbox"> <span>AI 視覺</span>
         </label>
         <div class="hint" id="vision-hint" style="margin-top:6px">開啟後,還需後台「🧠 AI 感知」也開「看得到畫面」+ OBS 已連線才會上工</div>
 

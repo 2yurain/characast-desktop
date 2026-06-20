@@ -155,14 +155,14 @@ async function fillSettingsForm() {
     if (r.enabled) resoStart();
   }
   paintQuick('qt-reso', '🎵 歌聲共鳴', Boolean(r.enabled));
-  // 🧠 讓 AI 聽你說話:還原桌面端開關(無設定 → 預設開)
+  // 🧠 啟用 AI 聽覺:還原桌面端開關(無設定 → 預設開)
   _sttLocalOn = s.stt ? Boolean(s.stt.enabled) : true;
   if ($('stt-enabled')) $('stt-enabled').checked = _sttLocalOn;
-  paintQuick('qt-stt', '🧠 聽你說話', _sttLocalOn);
-  // 🖼️ 讓 AI 看畫面:還原桌面端開關(無設定 → 預設開)+ 載入 Layer 2 校準檔
+  paintQuick('qt-stt', '🧠 AI 聽覺', _sttLocalOn);
+  // 🖼️ 啟用 AI 視覺:還原桌面端開關(無設定 → 預設開)+ 載入 Layer 2 校準檔
   _visLocalOn = s.vision ? Boolean(s.vision.enabled) : true;
   if ($('vision-enabled')) $('vision-enabled').checked = _visLocalOn;
-  paintQuick('qt-vision', '🖼️ 看畫面', _visLocalOn);
+  paintQuick('qt-vision', '🖼️ AI 視覺', _visLocalOn);
   _visProfiles = (s.visionProfiles && typeof s.visionProfiles === 'object') ? s.visionProfiles : {};
   _visHud = (s.visionHud && typeof s.visionHud === 'object') ? s.visionHud : {};
   // 🎚️ 教練錄音的人聲 / 伴奏增益:還原(每人音訊來源不同,寫死比例不通用 → 各自調)
@@ -1020,7 +1020,7 @@ $('mic-device')?.addEventListener('change', async () => {
 // AudioContext 可能因自動播放政策卡在 suspended,任一次點擊就嘗試恢復
 document.addEventListener('click', () => { if (_resoCtx && _resoCtx.state === 'suspended') _resoCtx.resume().catch(() => {}); });
 
-// ============== 🧠 AI 聽得到你(本地 whisper STT,WebGPU)==============
+// ============== 🧠 AI 聽覺(本地 whisper STT,WebGPU)==============
 // 後台開「聽得到主播」後,這台用 GPU 本地辨識麥克風,每 ~15s 轉一段 → 只送短文字當脈絡上雲。
 // 重活全在桌面端(邊緣),雲端不爆;聲音本機處理,不傳音檔、不存逐字稿。
 // transformers.js 從 jsdelivr 載、模型從 HuggingFace 下載(首次)→ CSP 已放行這兩個來源。
@@ -1108,7 +1108,7 @@ async function startStt(tier) {
         if (rms > VAD_ON_RMS) {
           _sttSpeaking = true; _sttSilentMs = 0;
           _sttChunks = _sttPre.slice(); _sttPre = [];      // 把開口前那幾框接上,第一個字不被吃掉
-          setSttHint('🎙️ 聽你說話中…');
+          setSttHint('🎙️ 聽覺辨識中…');
         }
         return;
       }
@@ -1124,7 +1124,7 @@ async function startStt(tier) {
 
     _sttTier = tier;
     _sttStarting = false;
-    setSttHint('✓ AI 聽得到你了 — 偵測到說話才辨識(本地 GPU)');
+    setSttHint('✓ AI 聽覺已開 — 偵測到說話才辨識(本地 GPU)');
     appendLog({ level: 'info', msg: `STT:已啟用(${tier} / ${model},語音偵測模式)` });
   } catch (e) {
     _sttStarting = false;
@@ -1202,7 +1202,7 @@ async function syncPerception() {
     else if (_sttTier !== tier) { stopStt(); startStt(tier); }   // 後台改效能等級 → 重載
   } else {
     if (_sttTier || _sttStarting) stopStt();
-    if (!_sttLocalOn) setSttHint('已關閉 — 打開上面的開關讓 AI 聽你說話');
+    if (!_sttLocalOn) setSttHint('已關閉 — 打開上面的開關啟用 AI 聽覺');
     else if (!cfg.sttEnabled) setSttHint('桌面端已開,但後台「🧠 AI 感知」尚未開「聽得到主播」');
   }
 
@@ -1212,24 +1212,24 @@ async function syncPerception() {
     else if (_visTier !== tier) { stopVision(); startVision(tier); }
   } else {
     if (_visTier || _visStarting) stopVision();
-    if (!_visLocalOn) setVisHint('已關閉 — 打開上面的開關讓 AI 看畫面');
+    if (!_visLocalOn) setVisHint('已關閉 — 打開上面的開關啟用 AI 視覺');
     else if (!cfg.visionEnabled) setVisHint('桌面端已開,但後台「🧠 AI 感知」尚未開「看得到畫面」');
   }
 }
 
-// 讓 AI 聽你說話:開關單一入口(分頁勾選 + 快速開關都走這)
+// 啟用 AI 聽覺:開關單一入口(分頁勾選 + 快速開關都走這)
 function setSttLocalOn(on) {
   _sttLocalOn = on;
   if ($('stt-enabled')) $('stt-enabled').checked = on;
-  paintQuick('qt-stt', '🧠 聽你說話', on);
+  paintQuick('qt-stt', '🧠 AI 聽覺', on);
   window.characast.setSettings({ stt: { enabled: on } });
-  if (!on && (_sttTier || _sttStarting)) { stopStt(); setSttHint('已關閉 — 打開開關讓 AI 聽你說話'); }
+  if (!on && (_sttTier || _sttStarting)) { stopStt(); setSttHint('已關閉 — 打開開關啟用 AI 聽覺'); }
   else syncPerception();
 }
 $('stt-enabled')?.addEventListener('change', (e) => setSttLocalOn(e.target.checked));
 $('qt-stt')?.addEventListener('click', () => setSttLocalOn(!_sttLocalOn));
 
-// ============== 🖼️ 讓 AI 看畫面(Layer 0 差異閘 + Layer 1 本地 CLIP 場景分類)==============
+// ============== 🖼️ 啟用 AI 視覺(Layer 0 差異閘 + Layer 1 本地 CLIP 場景分類)==============
 // Layer 0:截 OBS 目前場景縮圖 → 16x16 灰階 average-hash,沒變就跳過(免費、不跑模型)。
 // Layer 1:畫面變了才跑 CLIP 零樣本分類(WebGPU 本地)→ 得場景 → 只送短描述上雲。
 // 重活全在桌面端;雲端只收「場景:團戰中」這種短文字。未來校準/蒸餾會更省(見藍圖)。
@@ -1300,7 +1300,7 @@ async function startVision(tier) {
     appendLog({ level: 'info', msg: `Vision:已啟用(${tier})` });
   } catch (e) {
     _visStarting = false; stopVision();
-    setVisHint('⚠ 看畫面啟動失敗:' + (e.message || e));
+    setVisHint('⚠ AI 視覺啟動失敗:' + (e.message || e));
     appendLog({ level: 'err', msg: `Vision:啟動失敗 ${e.message || e}` });
   }
 }
@@ -1367,13 +1367,13 @@ function stopVision() {
   _zoneState = {}; _ocrLastText = {}; _ocrHist = {};
 }
 
-// 讓 AI 看畫面:開關單一入口(分頁勾選 + 快速開關都走這)
+// 啟用 AI 視覺:開關單一入口(分頁勾選 + 快速開關都走這)
 function setVisLocalOn(on) {
   _visLocalOn = on;
   if ($('vision-enabled')) $('vision-enabled').checked = on;
-  paintQuick('qt-vision', '🖼️ 看畫面', on);
+  paintQuick('qt-vision', '🖼️ AI 視覺', on);
   window.characast.setSettings({ vision: { enabled: on } });
-  if (!on && (_visTier || _visStarting)) { stopVision(); setVisHint('已關閉 — 打開開關讓 AI 看畫面'); }
+  if (!on && (_visTier || _visStarting)) { stopVision(); setVisHint('已關閉 — 打開開關啟用 AI 視覺'); }
   else syncPerception();
 }
 $('vision-enabled')?.addEventListener('change', (e) => setVisLocalOn(e.target.checked));
