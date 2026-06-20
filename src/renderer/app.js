@@ -687,15 +687,6 @@ function _fmtCoach(t) {
     .replace(/\n{3,}/g, '\n\n');
 }
 
-// 直播字幕只給觀眾一瞥(完整回饋留面板給主播看):去 markdown、取前 1~2 句、上限 ~90 字
-function _shortForOverlay(t) {
-  let s = String(t || '').replace(/[#*>`_~]/g, '').replace(/\s+/g, ' ').trim();
-  if (s.length <= 90) return s;
-  const cut = s.slice(0, 90);
-  const p = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('!'), cut.lastIndexOf('?'), cut.lastIndexOf(','));
-  return (p > 30 ? cut.slice(0, p + 1) : cut.trim()) + '…';
-}
-
 // Float32 chunks(任意 sr)→ 16-bit PCM mono WAV ArrayBuffer。
 // targetSr 省略 / >= srcRate → 不降頻(保真,給回放用);給 16000 → 降頻(送 AI 用,夠判音準又小)
 function _encodeWav(chunks, srcRate, targetSr) {
@@ -873,7 +864,7 @@ async function _singCoachSend() {
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + _fmtCoach(r.text); result.style.display = ''; }
-      // (拆掉自動「教練字幕」推送;之後做「主播自己選要不要丟到畫面」會接 coachToOverlay 那條管路)
+      // 評語只留在這張卡;要上直播畫面就直接視窗擷取「歌唱教練」這張卡(不另開 overlay,少一份設定)
       // 成功也保留錄音與回放,主播可以邊聽錄音邊看建議;要重來就按「重錄」
     } else {
       setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋')+ '(錄音還在,可再按送出)');
