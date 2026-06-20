@@ -165,9 +165,6 @@ async function fillSettingsForm() {
   paintQuick('qt-vision', '🖼️ 看畫面', _visLocalOn);
   _visProfiles = (s.visionProfiles && typeof s.visionProfiles === 'object') ? s.visionProfiles : {};
   _visHud = (s.visionHud && typeof s.visionHud === 'object') ? s.visionHud : {};
-  // 🎙️ 教練字幕:還原(無設定 → 預設關,因為會顯示在直播畫面上)
-  _coachOverlayOn = s.coachOverlay ? Boolean(s.coachOverlay.enabled) : false;
-  paintQuick('qt-coach', '🎙️ 教練字幕', _coachOverlayOn);
   // 🎚️ 教練錄音的人聲 / 伴奏增益:還原(每人音訊來源不同,寫死比例不通用 → 各自調)
   if (s.coachLevels) {
     if (Number.isFinite(s.coachLevels.mic)) _micGain = s.coachLevels.mic;
@@ -678,7 +675,6 @@ let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcR
 let _heldWav = null;   // 錄完暫存在本地的 WAV(ArrayBuffer);沒按送出/重錄前一直留著(失敗可重送、不用重錄)
 let _heldUrl = null;   // 上面那段的 blob URL(給 <audio> 回放)
 let _heldMix = false;  // 這段錄音有沒有真的混入伴奏 → 送雲時帶上(沒伴奏雲端就不評音準)
-let _coachOverlayOn = false;   // 「教練字幕」:開 → 教練回饋推到共鳴 overlay 顯示
 let _micGain = 2.0, _sysGain = 0.5;   // 教練錄音的人聲 / 伴奏增益(滑桿可調、存設定;每人音訊來源不同)
 
 // 面板顯示用:去開頭寒暄句 + 清掉 markdown 符號(** # )、條列轉 •、收多餘空行(div 用 pre-wrap 保留換行)
@@ -877,7 +873,7 @@ async function _singCoachSend() {
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + _fmtCoach(r.text); result.style.display = ''; }
-      if (_coachOverlayOn) window.characast.coachToOverlay?.(_shortForOverlay(r.text));   // 開「教練字幕」→ 只推精簡一瞥(完整留面板)
+      // (拆掉自動「教練字幕」推送;之後做「主播自己選要不要丟到畫面」會接 coachToOverlay 那條管路)
       // 成功也保留錄音與回放,主播可以邊聽錄音邊看建議;要重來就按「重錄」
     } else {
       setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋')+ '(錄音還在,可再按送出)');
@@ -938,13 +934,6 @@ function _bindCoachLevel(sliderId, valId, which) {
 }
 _bindCoachLevel('coach-mic-gain', 'coach-mic-val', 'mic');
 _bindCoachLevel('coach-sys-gain', 'coach-sys-val', 'sys');
-// 🎙️ 教練字幕快速開關:開 → 教練回饋推到共鳴 overlay
-function setCoachOverlayOn(on) {
-  _coachOverlayOn = Boolean(on);
-  paintQuick('qt-coach', '🎙️ 教練字幕', _coachOverlayOn);
-  window.characast.setSettings({ coachOverlay: { enabled: _coachOverlayOn } });
-}
-$('qt-coach')?.addEventListener('click', () => setCoachOverlayOn(!_coachOverlayOn));
 // 控制中心快速「歌唱教練」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
 $('qt-coachrec')?.addEventListener('click', singCoachToggle);
 

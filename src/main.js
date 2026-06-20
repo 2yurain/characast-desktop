@@ -81,7 +81,7 @@ ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('settings:get', () => settings.all());
 
 // renderer 只允許改這些 key(白名單,擋掉亂塞鍵 / 原型污染)
-const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance', 'mic', 'stt', 'vision', 'visionProfiles', 'visionHud', 'coachOverlay', 'voice', 'coachLevels']);
+const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance', 'mic', 'stt', 'vision', 'visionProfiles', 'visionHud', 'voice', 'coachLevels']);
 
 // Vision 框選區:每款遊戲一組 zones(畫面比例 0~1)。
 //   { [game]: { zones: [ { id, label, mode:'rate'|'ocr', rect:{x,y,w,h} } ] } }
