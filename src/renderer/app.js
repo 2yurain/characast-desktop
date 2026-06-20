@@ -863,7 +863,11 @@ async function _singCoachSend() {
   if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '⏳ 送出中…'; }
   setSingCoachHint('⏳ 上傳給 AI 聽…(約 10~20 秒)');
   try {
-    const r = await window.characast.coachSingAudio(_heldWav, ($('coach-song')?.value || '').trim(), ($('coach-question')?.value || '').trim(), _heldMix);
+    const songVal = ($('coach-song')?.value || '').trim();
+    const lyrVal = ($('coach-lyrics')?.value || '').trim();
+    // 有填歌詞 + 有歌名 → 先存(雲端教練會自動撈來對照),之後同一首免再貼
+    if (songVal && lyrVal) { try { await window.characast.songLyricsSave(songVal, lyrVal); } catch {} }
+    const r = await window.characast.coachSingAudio(_heldWav, songVal, ($('coach-question')?.value || '').trim(), _heldMix);
     const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: 'AI 沒給出回饋,再按一次送出', aux_budget: '今日 AI 歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
@@ -907,6 +911,21 @@ $('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?
 $('singcoach-btn')?.addEventListener('click', singCoachToggle);
 $('coach-send')?.addEventListener('click', _singCoachSend);
 $('coach-rerecord')?.addEventListener('click', () => { if (!_singRec) _singCoachStart(); });
+
+// 📝 歌詞:換歌名(或展開歌詞欄)→ 帶入這首存過的歌詞(只在空的時候帶,不蓋正在打的)
+async function loadSavedLyrics() {
+  const song = ($('coach-song')?.value || '').trim();
+  const ta = $('coach-lyrics'), hint = $('coach-lyr-hint');
+  if (!song) { if (hint) hint.textContent = ''; return; }
+  try {
+    const r = await window.characast.songLyricsGet(song);
+    const ly = (r && r.lyrics) || '';
+    if (ly && ta && !ta.value.trim()) ta.value = ly;
+    if (hint) hint.textContent = ly ? '✓ 已記住這首的歌詞(自動帶入,可改;清空再送 = 忘掉)' : '';
+  } catch { /* 撈不到就算了 */ }
+}
+$('coach-song')?.addEventListener('change', loadSavedLyrics);
+$('coach-lyr-wrap')?.addEventListener('toggle', (e) => { if (e.target.open) loadSavedLyrics(); });
 
 // 📜 歷史評語:展開時才載入(整段收折、每首再收折)→ 回看不用重錄
 async function loadCoachHistory() {

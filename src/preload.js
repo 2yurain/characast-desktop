@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld('characast', {
   // 歷史歌唱教練評語(回看不用重錄)→ { ok, items:[{id,song,text,date}] }
   coachHistory: () => ipcRenderer.invoke('singing:coachHistory'),
   coachHistoryDelete: (id) => ipcRenderer.invoke('singing:coachHistoryDelete', id),
+  // 歌詞:某首存一次,音檔教練自動對照(冷門/原創用;名曲免填)
+  songLyricsGet: (song) => ipcRenderer.invoke('singing:lyricsGet', song),
+  songLyricsSave: (song, lyrics) => ipcRenderer.invoke('singing:lyricsSave', { song, lyrics }),
   // 點唱歌單:桌面端控制(desktopToken)→ 回狀態 { enabled, nowSinging, count, queue }
   songQueueGet: () => ipcRenderer.invoke('songqueue:get'),
   songQueueAction: (action) => ipcRenderer.invoke('songqueue:action', action),

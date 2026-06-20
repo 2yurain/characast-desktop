@@ -278,6 +278,31 @@ ipcMain.handle('singing:coachHistory', async () => {
     return res.ok ? j : { ok: false, items: [] };
   } catch { return { ok: false, items: [] }; }
 });
+// 歌詞:GET ?song= / POST {song,lyrics}(desktopToken)
+ipcMain.handle('singing:lyricsGet', async (_e, song) => {
+  const token = settings.get('desktopToken');
+  const httpsUrl = settings.get('cloudHttpsUrl');
+  if (!token || !settings.validateCloudUrl(httpsUrl, { kind: 'https' }).ok || !song) return { ok: false, lyrics: '' };
+  try {
+    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/song-lyrics?song=${encodeURIComponent(String(song).slice(0, 60))}`, {
+      headers: { 'x-desktop-token': token },
+    });
+    return res.ok ? await res.json() : { ok: false, lyrics: '' };
+  } catch { return { ok: false, lyrics: '' }; }
+});
+ipcMain.handle('singing:lyricsSave', async (_e, { song, lyrics } = {}) => {
+  const token = settings.get('desktopToken');
+  const httpsUrl = settings.get('cloudHttpsUrl');
+  if (!token || !settings.validateCloudUrl(httpsUrl, { kind: 'https' }).ok || !song) return { ok: false };
+  try {
+    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/song-lyrics`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-desktop-token': token },
+      body: JSON.stringify({ song: String(song).slice(0, 60), lyrics: String(lyrics || '').slice(0, 4000) }),
+    });
+    return res.ok ? await res.json() : { ok: false };
+  } catch { return { ok: false }; }
+});
 ipcMain.handle('singing:coachHistoryDelete', async (_e, id) => {
   const token = settings.get('desktopToken');
   const httpsUrl = settings.get('cloudHttpsUrl');
