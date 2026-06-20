@@ -738,6 +738,7 @@ function _clearHeldWav() {
   _heldWav = null; _heldMix = false;
   if (_heldUrl) { try { URL.revokeObjectURL(_heldUrl); } catch {} _heldUrl = null; }
   const pb = $('coach-playback'); if (pb) pb.style.display = 'none';
+  const sb = $('singcoach-btn'); if (sb) sb.style.display = '';   // 沒在暫存狀態 → 顯示錄音鈕
   const au = $('coach-audio'); if (au) { try { au.pause(); } catch {} au.removeAttribute('src'); }
 }
 
@@ -849,7 +850,9 @@ async function _singCoachStop() {
   const pb = $('coach-playback'); if (pb) pb.style.display = '';
   const sendBtn = $('coach-send'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 教練評語'; }
   setSingCoachHint(`✓ 錄好了(${_mmss(secs)})—— 可以先▶播放聽聽,按「教練評語」要回饋`);
-  _setSingBtns('🎙️ 重新錄音', false);
+  _setSingBtns('🎙️ 歌唱教練', false);   // 重置(控制中心快速鈕回標籤;主錄音鈕等下藏)
+  // 暫存狀態:藏掉主錄音鈕(「↻ 重錄」已涵蓋重錄)→ 只剩 [📤 教練評語][↻ 重錄] 兩顆同一排
+  const sb = $('singcoach-btn'); if (sb) sb.style.display = 'none';
 }
 
 // 把暫存的 WAV 送上雲(可重複按:503 / 失敗都不用重錄)
