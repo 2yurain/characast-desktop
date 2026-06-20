@@ -80,6 +80,9 @@ class Relay {
         // 叛變(rebel)/ 平叛(neutral)→ 觸發對應 VTS 表情
         this.onVtsExpression?.(msg.emotion);
         this.onLog({ level: 'info', msg: `relay ← cloud: vts.expression ${msg.emotion}` });
+      } else if (msg.type === 'mod.flag') {
+        // 違禁詞:只通知主播(不自動處置)→ 在即時 log 跳警示,主播自己決定要不要動作
+        this.onLog({ level: 'warn', msg: `🚫 違禁詞:${msg.user || '某觀眾'} 講到「${msg.keyword}」 — ${String(msg.text || '').slice(0, 80)}` });
       }
     });
   }
