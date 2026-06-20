@@ -90,6 +90,15 @@
           <button type="button" id="sq-refresh" class="ghost">↻</button>
         </div>
         <div id="sq-list" style="margin-top:10px;font-size:13px;line-height:1.9;color:var(--text,#eee)"></div>
+        <!-- 🎵 歌聲共鳴:同一張卡的下半段(抓共用麥 → 推 OBS 共鳴 overlay)-->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2c2230)">
+          <div class="howto-title" style="margin-bottom:8px">🎵 歌聲共鳴</div>
+          <label class="check-row"><input id="reso-enabled" type="checkbox"> <span>啟用歌聲共鳴</span></label>
+          <div style="margin-top:10px;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden">
+            <i id="reso-meter" style="display:block;height:100%;width:0;border-radius:999px;background:#28dc96;transition:width .1s linear"></i>
+          </div>
+          <div class="hint" id="reso-hint" style="margin-top:6px">需 cloud 已連線。開啟後唱歌,OBS 的共鳴 overlay 就會動。</div>
+        </div>
       </div>
 
       <!-- 🎙️ 歌唱教練:錄一段唱上雲(Gemini 聽,伴奏可)→ 回饋(需 Pro+ 與 cloud 已連線)-->
@@ -134,17 +143,6 @@
         </details>
       </div>
 
-      <!-- 🎵 歌聲共鳴:抓共用麥分析 → 推給 cloud → OBS 的共鳴 overlay(只是開關,擺最後)-->
-      <div class="howto" style="margin-top:18px">
-        <div class="howto-title">🎵 歌聲共鳴</div>
-        <label class="check-row">
-          <input id="reso-enabled" type="checkbox"> <span>啟用歌聲共鳴</span>
-        </label>
-        <div style="margin-top:10px;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden">
-          <i id="reso-meter" style="display:block;height:100%;width:0;border-radius:999px;background:#28dc96;transition:width .1s linear"></i>
-        </div>
-        <div class="hint" id="reso-hint" style="margin-top:6px">需 cloud 已連線。開啟後唱歌,OBS 的共鳴 overlay 就會動。</div>
-      </div>
     </div>
 
     <!-- Tab: VTuber(VTube Studio) -->
