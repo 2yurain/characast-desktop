@@ -918,9 +918,18 @@ async function loadCoachHistory() {
       const ds = d ? `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
       const song = (it.song && it.song !== '(未命名)') ? `《${esc(it.song)}》` : '(未命名)';
       return `<details style="margin-bottom:6px;border:1px solid var(--line,#2c2230);border-radius:8px;padding:6px 10px">`
-        + `<summary style="cursor:pointer;font-size:13px;color:var(--text-dim,#aaa)">${song} <span style="opacity:.55">· ${ds}</span></summary>`
+        + `<summary style="cursor:pointer;font-size:13px;color:var(--text-dim,#aaa);display:flex;align-items:center;gap:6px">`
+        + `<span style="flex:1">${song} <span style="opacity:.55">· ${ds}</span></span>`
+        + `<button type="button" data-coachdel="${esc(it.id)}" title="刪除這則" style="background:none;border:0;color:var(--danger,#ff7777);cursor:pointer;font-size:13px;padding:0 4px">🗑</button>`
+        + `</summary>`
         + `<div style="margin-top:6px;white-space:pre-wrap;line-height:1.8;font-size:14px">🎙️ ${esc(_fmtCoach(it.text))}</div></details>`;
     }).join('');
+    box.querySelectorAll('[data-coachdel]').forEach((b) => b.addEventListener('click', async (ev) => {
+      ev.preventDefault(); ev.stopPropagation();   // 別連帶展開/收折那則
+      if (!confirm('刪除這一則評語?無法復原')) return;
+      try { await window.characast.coachHistoryDelete(b.getAttribute('data-coachdel')); loadCoachHistory(); }
+      catch (e) { alert('刪除失敗:' + (e.message || e)); }
+    }));
   } catch (e) { box.textContent = '載入失敗:' + (e.message || e); }
 }
 $('coach-hist-wrap')?.addEventListener('toggle', (e) => { if (e.target.open) loadCoachHistory(); });

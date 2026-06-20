@@ -278,6 +278,19 @@ ipcMain.handle('singing:coachHistory', async () => {
     return res.ok ? j : { ok: false, items: [] };
   } catch { return { ok: false, items: [] }; }
 });
+ipcMain.handle('singing:coachHistoryDelete', async (_e, id) => {
+  const token = settings.get('desktopToken');
+  const httpsUrl = settings.get('cloudHttpsUrl');
+  if (!token || !settings.validateCloudUrl(httpsUrl, { kind: 'https' }).ok) return { ok: false };
+  try {
+    const res = await fetch(`${httpsUrl.replace(/\/$/, '')}/api/v1/desktop/coach-history/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-desktop-token': token },
+      body: JSON.stringify({ id: String(id || '') }),
+    });
+    return res.ok ? await res.json() : { ok: false };
+  } catch { return { ok: false }; }
+});
 
 // 歌唱教練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
 ipcMain.handle('singing:coachAudio', async (_e, payload) => {
