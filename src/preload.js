@@ -35,9 +35,9 @@ contextBridge.exposeInMainWorld('characast', {
   sendStreamerSpeech: (text) => ipcRenderer.send('streamer:speech', text),
   // 歌唱音準:本場累計聚合 → main → cloud(成長報告 B 維度;低頻)
   sendPitchStats: (stats) => ipcRenderer.send('streamer:pitch', stats),
-  // 歌唱教練:上傳一段清唱 WAV(ArrayBuffer)→ main HTTP → cloud Gemini,回 { ok, text, song }
+  // 歌唱陪練:上傳一段清唱 WAV(ArrayBuffer)→ main HTTP → cloud Gemini,回 { ok, text, song }
   coachSingAudio: (wav, song, question, mix) => ipcRenderer.invoke('singing:coachAudio', { wav, song, question, mix }),
-  // 歷史歌唱教練評語(回看不用重錄)→ { ok, items:[{id,song,text,date}] }
+  // 歷史歌唱陪練評語(回看不用重錄)→ { ok, items:[{id,song,text,date}] }
   coachHistory: () => ipcRenderer.invoke('singing:coachHistory'),
   coachHistoryDelete: (id) => ipcRenderer.invoke('singing:coachHistoryDelete', id),
   // 歌詞:某首存一次,音檔教練自動對照(冷門/原創用;名曲免填)

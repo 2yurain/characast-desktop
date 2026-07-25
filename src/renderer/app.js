@@ -668,7 +668,7 @@ function resoStop() {
 }
 
 // =====================================================
-// 🎙️ 歌唱教練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
+// 🎙️ 歌唱陪練:錄一段清唱 → 降頻成 16k mono WAV → 上傳(只在主播按下時)
 // =====================================================
 const SINGCOACH_TARGET_SR = 16000, SINGCOACH_MAX_SECONDS = 300, SINGCOACH_MIN_SECONDS = 4;
 let _singRec = null;   // 錄音中狀態 { ctx, stream, src, proc, chunks, srcRate, t0, tick };null = 沒在錄
@@ -723,7 +723,7 @@ function _encodeWav(chunks, srcRate, targetSr) {
 }
 
 function setSingCoachHint(msg) { const h = $('singcoach-hint'); if (h) { h.textContent = msg; h.style.display = msg ? '' : 'none'; } }
-// 唱歌分頁的錄音鈕 + 控制中心的「歌唱教練」兩顆同步(文字 / 禁用)
+// 唱歌分頁的錄音鈕 + 控制中心的「歌唱陪練」兩顆同步(文字 / 禁用)
 function _setSingBtns(txt, disabled) {
   for (const id of ['singcoach-btn', 'qt-coachrec']) {
     const b = $(id); if (!b) continue;
@@ -849,10 +849,10 @@ async function _singCoachStop() {
   _heldUrl = URL.createObjectURL(new Blob([playWav], { type: 'audio/wav' }));
   const au = $('coach-audio'); if (au) au.src = _heldUrl;
   const pb = $('coach-playback'); if (pb) pb.style.display = '';
-  const sendBtn = $('coach-send'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 教練評語'; }
-  setSingCoachHint(`✓ 錄好了(${_mmss(secs)})—— 可以先▶播放聽聽,按「教練評語」要回饋`);
-  _setSingBtns('🎙️ 歌唱教練', false);   // 重置(控制中心快速鈕回標籤;主錄音鈕等下藏)
-  // 暫存狀態:藏掉主錄音鈕(「↻ 重錄」已涵蓋重錄)→ 只剩 [📤 教練評語][↻ 重錄] 兩顆同一排
+  const sendBtn = $('coach-send'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 陪練評語'; }
+  setSingCoachHint(`✓ 錄好了(${_mmss(secs)})—— 可以先▶播放聽聽,按「陪練評語」要回饋`);
+  _setSingBtns('🎙️ 歌唱陪練', false);   // 重置(控制中心快速鈕回標籤;主錄音鈕等下藏)
+  // 暫存狀態:藏掉主錄音鈕(「↻ 重錄」已涵蓋重錄)→ 只剩 [📤 陪練評語][↻ 重錄] 兩顆同一排
   const sb = $('singcoach-btn'); if (sb) sb.style.display = 'none';
 }
 
@@ -868,12 +868,12 @@ async function _singCoachSend() {
     // 有填歌詞 + 有歌名 → 先存(雲端教練會自動撈來對照),之後同一首免再貼
     if (songVal && lyrVal) { try { await window.characast.songLyricsSave(songVal, lyrVal); } catch {} }
     const r = await window.characast.coachSingAudio(_heldWav, songVal, ($('coach-question')?.value || '').trim(), _heldMix);
-    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱教練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: '沒給出回饋,再按一次送出', aux_budget: '今日歌聲分析額度用完了,明天再來' };
+    const REASON = { no_gemini: '雲端還沒設定 Gemini 金鑰', plan: '歌唱陪練是 Pro 以上方案', no_audio: '沒錄到聲音', gemini_empty: '沒給出回饋,再按一次送出', aux_budget: '今日歌聲分析額度用完了,明天再來' };
     if (r?.ok && r.text) {
       setSingCoachHint(r.song ? `✓ 已聽你唱《${r.song}》` : '✓ 回饋來了');
       if (result) { result.textContent = '🎙️ ' + _fmtCoach(r.text); result.style.display = ''; }
       if ($('coach-hist-wrap')?.open) loadCoachHistory();   // 歷史評語若展開著 → 把這次也刷進去
-      // 評語只留在這張卡;要上直播畫面就直接視窗擷取「歌唱教練」這張卡(不另開 overlay,少一份設定)
+      // 評語只留在這張卡;要上直播畫面就直接視窗擷取「歌唱陪練」這張卡(不另開 overlay,少一份設定)
       // 成功也保留錄音與回放,主播可以邊聽錄音邊看建議;要重來就按「重錄」
     } else {
       setSingCoachHint('✗ ' + (REASON[r?.reason] || r?.error || '產不出回饋')+ '(錄音還在,可再按送出)');
@@ -881,7 +881,7 @@ async function _singCoachSend() {
   } catch (e) {
     setSingCoachHint('✗ 上傳失敗:' + (e.message || e) + '(錄音還在,可再按送出)');
   } finally {
-    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 教練評語'; }
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '📤 陪練評語'; }
   }
 }
 
@@ -934,7 +934,7 @@ async function loadCoachHistory() {
   try {
     const r = await window.characast.coachHistory();
     const items = (r && r.items) || [];
-    if (!items.length) { box.innerHTML = '<div class="hint" style="margin:0">還沒有評語紀錄(送出一次教練評語就會留下)</div>'; return; }
+    if (!items.length) { box.innerHTML = '<div class="hint" style="margin:0">還沒有評語紀錄(送出一次陪練評語就會留下)</div>'; return; }
     const esc = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
     box.innerHTML = items.map((it) => {
       const d = it.date ? new Date(it.date) : null;
@@ -979,7 +979,7 @@ function _bindCoachLevel(sliderId, valId, which) {
 }
 _bindCoachLevel('coach-mic-gain', 'coach-mic-val', 'mic');
 _bindCoachLevel('coach-sys-gain', 'coach-sys-val', 'sys');
-// 控制中心快速「歌唱教練」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
+// 控制中心快速「歌唱陪練」(跟唱歌分頁的錄音鈕共用流程,兩顆標籤同步)
 $('qt-coachrec')?.addEventListener('click', singCoachToggle);
 
 // 🎵 點唱歌單(桌面端控制 desktopToken;在「唱歌」分頁刷新)

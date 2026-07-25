@@ -60,7 +60,7 @@
     <!-- 快速開關(控制中心):即時開關的功能集中在這,詳細設定仍在各分頁 -->
     <div style="margin:14px 0 4px">
       <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button type="button" id="qt-coachrec" class="quick-toggle action">🎙️ 歌唱教練</button>
+        <button type="button" id="qt-coachrec" class="quick-toggle action">🎙️ 歌唱陪練</button>
         <button type="button" id="qt-reso" class="quick-toggle"></button>
         <button type="button" id="qt-stt" class="quick-toggle"></button>
         <button type="button" id="qt-vision" class="quick-toggle"></button>
@@ -76,7 +76,7 @@
     </div>
 
     <div class="tab-scroll">
-    <!-- Tab: 唱歌(每天會用的:點唱 + 歌唱教練 + 麥克風 + 共鳴)-->
+    <!-- Tab: 唱歌(每天會用的:點唱 + 歌唱陪練 + 麥克風 + 共鳴)-->
     <div class="tab-pane active" data-tab="sing">
       <!-- 🎵 點唱歌單:觀眾點的歌(desktopToken 控制,同後台 /me/songqueue)-->
       <div class="howto">
@@ -101,11 +101,11 @@
         </div>
       </div>
 
-      <!-- 🎙️ 歌唱教練:錄一段唱上雲(Gemini 聽,伴奏可)→ 回饋(需 Pro+ 與 cloud 已連線)-->
+      <!-- 🎙️ 歌唱陪練:錄一段唱上雲(Gemini 聽,伴奏可)→ 回饋(需 Pro+ 與 cloud 已連線)-->
       <div class="howto" style="margin-top:18px">
-        <div class="howto-title">🎙️ 歌唱教練</div>
+        <div class="howto-title">🎙️ 歌唱陪練</div>
         <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">按「開始」唱、唱到想停(例如唱完一段副歌)再按「停止並送出」→ 聽完只評這一次(不跟上次比,避免亂掰)<br><b>開伴奏唱也可以</b> —— 而且伴奏讓 mic 收得到的話,反而更能判音準(對不對得上和聲);想要乾淨人聲就把伴奏走耳機<br>只在你送出才上傳,聽完即丟、不保存音檔;上限 5 分鐘</p></details>
-        <input id="coach-question" type="text" maxlength="120" placeholder="想問教練什麼?(留空=整體聽聽)例:我高音怎麼樣?" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
+        <input id="coach-question" type="text" maxlength="120" placeholder="想問陪練什麼?(留空=整體聽聽)例:我高音怎麼樣?" style="width:100%;margin-bottom:6px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <input id="coach-song" type="text" maxlength="60" placeholder="這次唱哪首(留空=用點唱清單那首)" style="width:100%;margin-bottom:8px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px">
         <!-- 📝 歌詞:想精準對照歌詞、不聽錯字就自己填(任何歌都行;填一次按歌名記住,下次自動帶入)。不填 = 純靠聽,可能聽錯字 -->
         <details class="note" id="coach-lyr-wrap" style="margin-bottom:8px">
@@ -130,7 +130,7 @@
         <div id="coach-playback" style="display:none;margin-top:10px">
           <audio id="coach-audio" controls style="width:100%;height:36px"></audio>
           <div style="display:flex;gap:8px;margin-top:8px">
-            <button type="button" id="coach-send">📤 教練評語</button>
+            <button type="button" id="coach-send">📤 陪練評語</button>
             <button type="button" id="coach-rerecord" class="ghost">↻ 重錄</button>
           </div>
         </div>
@@ -195,10 +195,10 @@
 
     <!-- Tab: 帳號 -->
     <div class="tab-pane cards" data-tab="account">
-      <!-- 🎤 麥克風(共用輸入):共鳴 / 教練 / AI 聽覺 都吃它 -->
+      <!-- 🎤 麥克風(共用輸入):共鳴 / 陪練 / AI 聽覺 都吃它 -->
       <div class="howto">
         <div class="howto-title">🎤 麥克風裝置(共用)</div>
-        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">先選你實況用的麥克風<br>「歌聲共鳴」「歌唱教練」和進階的「AI 聽覺」都會用這支</p></details>
+        <details class="note"><summary>說明</summary><p class="howto-note" style="margin:4px 0 8px">先選你實況用的麥克風<br>「歌聲共鳴」「歌唱陪練」和進階的「AI 聽覺」都會用這支</p></details>
         <select id="mic-device"><option value="">預設麥克風</option></select>
       </div>
 

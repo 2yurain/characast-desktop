@@ -265,7 +265,7 @@ async function _songQueueReq(method, body) {
 ipcMain.handle('songqueue:get', () => _songQueueReq('GET'));
 ipcMain.handle('songqueue:action', (_e, action) => _songQueueReq('POST', { action: String(action || '') }));
 
-// 歷史歌唱教練評語(GET;desktopToken)→ 回看不用重錄
+// 歷史歌唱陪練評語(GET;desktopToken)→ 回看不用重錄
 ipcMain.handle('singing:coachHistory', async () => {
   const token = settings.get('desktopToken');
   const httpsUrl = settings.get('cloudHttpsUrl');
@@ -317,7 +317,7 @@ ipcMain.handle('singing:coachHistoryDelete', async (_e, id) => {
   } catch { return { ok: false }; }
 });
 
-// 歌唱教練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
+// 歌唱陪練:renderer 錄好一段清唱 WAV → 這裡帶 desktopToken HTTP POST 上雲(Gemini 聽 → 回饋)
 ipcMain.handle('singing:coachAudio', async (_e, payload) => {
   const wavBuf = payload && payload.wav ? payload.wav : payload;   // 相容舊呼叫(直接傳 buffer)
   const song = (payload && typeof payload.song === 'string') ? payload.song.trim() : '';
@@ -342,10 +342,10 @@ ipcMain.handle('singing:coachAudio', async (_e, payload) => {
     });
     const j = await res.json();
     if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-    pushLog({ level: 'info', msg: `歌唱教練:上傳 ${Math.round((wavBuf.byteLength || 0) / 1024)}KB → ${j.ok ? (j.song ? '《' + j.song + '》' : '回饋已產生') : '無回饋(' + (j.reason || '?') + ')'}` });
+    pushLog({ level: 'info', msg: `歌唱陪練:上傳 ${Math.round((wavBuf.byteLength || 0) / 1024)}KB → ${j.ok ? (j.song ? '《' + j.song + '》' : '回饋已產生') : '無回饋(' + (j.reason || '?') + ')'}` });
     return j;
   } catch (e) {
-    pushLog({ level: 'err', msg: `歌唱教練上傳失敗:${e.message}` });
+    pushLog({ level: 'err', msg: `歌唱陪練上傳失敗:${e.message}` });
     return { ok: false, error: e.message };
   }
 });
@@ -499,7 +499,7 @@ app.whenReady().then(() => {
   // renderer 跑在 sandbox,getUserMedia 仍要 main 這關放行。
   session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
   session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
-  // 歌唱教練「混音」用:讓 renderer 抓系統音(伴奏)做 loopback,不跳螢幕選擇器。
+  // 歌唱陪練「混音」用:讓 renderer 抓系統音(伴奏)做 loopback,不跳螢幕選擇器。
   // 只在 renderer 呼叫 getDisplayMedia 時觸發;我們只取 audio: 'loopback'(video 拿來占位,renderer 立刻丟掉)。
   try {
     session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
