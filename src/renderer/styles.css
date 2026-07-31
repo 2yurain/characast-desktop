@@ -1,16 +1,17 @@
 :root {
-  --bg: #0f0c14;
-  --panel: #1a141e;
-  --panel-2: #221a28;
-  --rule: #2c2230;
-  --text: #f3e8d8;
-  --text-dim: #b9a999;
-  --text-mute: #7a6c5e;
-  --accent: #ffb84d;
-  --accent-2: #d8924a;
-  --ok: #82d96b;
-  --warn: #ffb84d;
-  --err: #ff7676;
+  /* 極簡未來感冷色票 — 與雲端 characast/public 同一套 */
+  --bg: #07080C;
+  --panel: #0E1017;
+  --panel-2: #13151E;
+  --rule: #23262F;
+  --text: #ECEDF3;
+  --text-dim: #9EA2B4;
+  --text-mute: #5C6072;
+  --accent: #8B7BFF;
+  --accent-2: #6EA8FF;
+  --ok: #46D6A6;
+  --warn: #F5B84B;
+  --err: #FF6E86;
 }
 * { box-sizing: border-box; margin: 0; padding: 0 }
 body {
@@ -56,14 +57,14 @@ select { width: 100%; padding: 7px 11px }
 input:focus { outline: none; border-color: var(--accent) }
 
 button {
-  background: var(--accent); color: #2a1a05; border: 0; border-radius: 6px;
+  background: var(--accent); color: #0A0A12; border: 0; border-radius: 6px;
   padding: 8px 18px; font-weight: 600; cursor: pointer; font-size: 13px;
   margin-top: 8px;
 }
-button:hover { background: #ffc966 }
+button:hover { background: #A99CFF }
 button.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--rule); font-weight: 500 }
 button.ghost:hover { color: var(--accent); border-color: var(--accent) }
-button.danger { background: transparent; color: var(--err); border: 1px solid #553030 }
+button.danger { background: transparent; color: var(--err); border: 1px solid rgba(255,110,134,0.35) }
 
 #pair-input {
   font-family: Consolas, Menlo, monospace; font-size: 28px; text-align: center;
@@ -93,7 +94,7 @@ button.danger { background: transparent; color: var(--err); border: 1px solid #5
   background: var(--panel-2); color: var(--text-mute);
 }
 .card-pill.connected { background: rgba(130, 217, 107, 0.15); color: var(--ok) }
-.card-pill.connecting { background: rgba(255, 184, 77, 0.15); color: var(--warn) }
+.card-pill.connecting { background: rgba(245, 184, 75, 0.15); color: var(--warn) }
 .card-pill.error { background: rgba(255, 118, 118, 0.15); color: var(--err) }
 .card-meta { grid-column: 1 / -1; grid-row: 2; color: var(--text-dim); font-size: 10px; margin: 0; font-family: Consolas, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .status-card .hint-link { grid-column: 1 / -1 }
@@ -192,7 +193,7 @@ details.howto[open] > summary::after { content: ' ▾' }
 .quick-toggle.on { background: rgba(130, 217, 107, 0.12); border-color: rgba(130, 217, 107, 0.5) }
 .quick-toggle.on b { color: var(--ok) }
 .quick-toggle.action { border-color: var(--accent); color: var(--accent) }   /* 動作型(歌唱陪練)*/
-.quick-toggle.action:hover { background: rgba(255, 184, 77, 0.1) }
+.quick-toggle.action:hover { background: rgba(139, 123, 255, 0.1) }
 
 /* form row / col(設定表單格線) */
 .form-row { display: flex; gap: 12px }
