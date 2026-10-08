@@ -1101,12 +1101,14 @@ async function startStt(tier) {
       const frameMs = (frame.length / sr) * 1000;
       let sq = 0; for (let i = 0; i < frame.length; i++) sq += frame[i] * frame[i];
       const rms = Math.sqrt(sq / frame.length);
+      momentNoteLevel(rms, _sttSpeaking);   // 聲音觸發畫面判讀:突然大聲偵測(沒開就 no-op)
 
       if (!_sttSpeaking) {
         // 還沒開口:滾動保留少量 pre-roll;音量一過門檻就進入「說話中」
         _sttPre.push(frame); if (_sttPre.length > VAD_PREROLL) _sttPre.shift();
         if (rms > VAD_ON_RMS) {
           _sttSpeaking = true; _sttSilentMs = 0;
+          _sttUttStartAt = Date.now() - Math.round((_sttPre.length * frame.length / sr) * 1000);   // 含 pre-roll 的開口時間
           _sttChunks = _sttPre.slice(); _sttPre = [];      // 把開口前那幾框接上,第一個字不被吃掉
           setSttHint('🎙️ 聽覺辨識中…');
         }
@@ -1118,7 +1120,7 @@ async function startStt(tier) {
       const durMs = _sttChunks.reduce((n, a) => n + a.length, 0) / sr * 1000;
       if (_sttSilentMs >= VAD_HANG_MS || durMs >= VAD_MAX_MS) {
         _sttSpeaking = false; _sttSilentMs = 0;
-        flushStt();                                         // 非同步辨識這一句
+        flushStt(_sttUttStartAt, Date.now());               // 非同步辨識這一句(帶起訖時間給聲音觸發對時)
       }
     };
 
@@ -1134,7 +1136,7 @@ async function startStt(tier) {
   }
 }
 
-async function flushStt() {
+async function flushStt(uttStart = Date.now(), uttEnd = Date.now()) {
   if (_sttBusy || !_sttTranscriber || !_sttChunks.length) return;
   _sttBusy = true;
   try {
@@ -1157,6 +1159,8 @@ async function flushStt() {
     if (text.length > 1 && hasWord && !HALLUC.test(text)) {
       window.characast.sendStreamerSpeech(text);
       appendLog({ level: 'info', msg: `STT 🎙️ 辨識:「${text}」→ 已上雲` });
+      momentFromSpeech(text, uttStart, uttEnd);   // 講到反應詞 / 剛剛很大聲 → 送畫面給 AI 看
+
       setSttHint(`✓ 聽到了:「${text.slice(0, 24)}${text.length > 24 ? '…' : ''}」`);
     } else if (raw) {
       appendLog({ level: 'info', msg: `STT:略過非語音/雜訊「${raw.slice(0, 16)}」` });
@@ -1175,6 +1179,90 @@ function stopStt() {
   _sttProc = _sttSilent = _sttStream = _sttCtx = null;
   _sttChunks = []; _sttBusy = false;
   _sttSpeaking = false; _sttSilentMs = 0; _sttPre = [];
+}
+
+// ============== 🎯 聲音觸發的畫面判讀(Vision moments)==============
+// 定時截圖抓不到重點:遊戲事件幾秒就過,截到的常是「之後」。改成主播一有反應才看:
+//   平常:本機記憶體只留最近 16 秒的低解析度畫面(每 1.5 秒一張),不上傳
+//   觸發:主播喊「靠」「好耶」「我死了」… 或突然很大聲 → 送反應前後 4 張給雲端 AI 看「剛剛發生什麼」
+// 需要:後台「看得到畫面」+ 這台 AI 視覺開 + 雲端旗標(momentsEnabled);觸發要靠 AI 聽覺的麥。
+const MOMENT_FRAME_MS = 1500;      // 多久存一張
+const MOMENT_KEEP_MS = 16_000;     // 暫存多久
+const MOMENT_BEFORE_MS = 5000;     // 取反應前多久的畫面(事件通常發生在喊出來之前)
+const MOMENT_AFTER_MS = 1000;      // 跟反應後多久
+const MOMENT_COOLDOWN_MS = 40_000; // 兩次觸發至少隔多久(雲端另有 30 秒冷卻)
+const MOMENT_WORDS = /靠|幹|哇|好耶|漂亮|死了|完了|救命|天啊|不會吧|怎麼可能|雙殺|三殺|四殺|五殺|超神|團滅|快跑|好險|差一點|可惡|笑死|翻盤|nice|gg/i;
+const MOMENT_LOUD_MIN = 0.12;      // 大聲觸發:音量至少這麼大,且
+const MOMENT_LOUD_MULT = 3.5;      // 超過平常講話音量的這個倍數(AGC 開著會壓大聲,所以門檻抓保守、看 log 再調)
+let _momOn = false, _momTimer = null, _momFrames = [], _momShotBusy = false, _momLastSent = 0;
+let _momSpeechRms = 0.03;          // 平常講話音量(講話時慢慢學)
+let _momLoudAt = 0, _momLoudTimer = null;
+let _sttUttStartAt = 0;            // 這句話開口的時間(給觸發對時間用)
+
+function startMoments() {
+  if (_momOn) return;
+  _momOn = true; _momFrames = []; _momLoudAt = 0;
+  _momTimer = setInterval(momentShot, MOMENT_FRAME_MS);
+  appendLog({ level: 'info', msg: '🎯 聲音觸發畫面判讀:已啟用(本機暫存最近 16 秒畫面,有反應才送)' });
+}
+function stopMoments() {
+  if (!_momOn) return;
+  _momOn = false;
+  if (_momTimer) { clearInterval(_momTimer); _momTimer = null; }
+  if (_momLoudTimer) { clearTimeout(_momLoudTimer); _momLoudTimer = null; }
+  _momFrames = []; _momLoudAt = 0;
+  appendLog({ level: 'info', msg: '🎯 聲音觸發畫面判讀:已停止(暫存畫面已清空)' });
+}
+async function momentShot() {
+  if (_momShotBusy) return;
+  _momShotBusy = true;
+  try {
+    const shot = await window.characast.getObsScreenshot({ width: 768, quality: 55 });
+    if (!shot) return;
+    const now = Date.now();
+    _momFrames.push({ at: now, img: shot });
+    while (_momFrames.length && now - _momFrames[0].at > MOMENT_KEEP_MS) _momFrames.shift();
+  } catch { /* 截不到就等下一張 */ } finally { _momShotBusy = false; }
+}
+// t0 = 反應的時間點;等反應後那張存進來再送
+function triggerMoment(reason, speech, t0) {
+  if (!_momOn) return;
+  const now = Date.now();
+  if (now - _momLastSent < MOMENT_COOLDOWN_MS) return;
+  _momLastSent = now;
+  setTimeout(() => {
+    const win = _momFrames.filter((f) => f.at >= t0 - MOMENT_BEFORE_MS && f.at <= t0 + MOMENT_AFTER_MS + 800);
+    if (win.length < 2) {
+      _momLastSent = 0;   // 沒送出去 → 不佔冷卻
+      appendLog({ level: 'warn', msg: '🎯 聲音觸發:暫存畫面不夠(OBS 沒連上?)' });
+      return;
+    }
+    const pick = win.length <= 4 ? win : [0, 1, 2, 3].map((i) => win[Math.round((i * (win.length - 1)) / 3)]);
+    window.characast.sendVisionMoment({
+      reason, speech,
+      frames: pick.map((f) => ({ t: Math.round((f.at - t0) / 100) / 10, img: f.img })),
+    });
+    appendLog({ level: 'info', msg: `🎯 聲音觸發(${reason === 'loud' ? '突然大聲' : `「${speech}」`})→ 送 ${pick.length} 張畫面給 AI 看` });
+  }, Math.max(0, t0 + MOMENT_AFTER_MS + 300 - now));
+}
+// 麥克風每一框呼叫:講話時學平常音量;突然遠超平常 → 記下「大聲」時間點,等這句辨識完一起送(帶上講了什麼)
+function momentNoteLevel(rms, speaking) {
+  if (!_momOn) return;
+  if (speaking && rms > VAD_ON_RMS && rms < MOMENT_LOUD_MIN) _momSpeechRms = _momSpeechRms * 0.98 + rms * 0.02;
+  if (_momLoudAt || rms < Math.max(MOMENT_LOUD_MIN, _momSpeechRms * MOMENT_LOUD_MULT)) return;
+  _momLoudAt = Date.now();
+  // 保險:6 秒內沒等到辨識結果(辨識忙 / 只是尖叫沒字)→ 不帶文字直接送
+  _momLoudTimer = setTimeout(() => { if (_momLoudAt) { const t = _momLoudAt; _momLoudAt = 0; triggerMoment('loud', '', t); } }, 6000);
+}
+// 一句話辨識完:有大聲標記 或 講到反應詞 → 觸發
+function momentFromSpeech(text, uttStart, uttEnd) {
+  if (!_momOn) return;
+  const loud = _momLoudAt && _momLoudAt >= uttStart - 500;
+  const hit = MOMENT_WORDS.test(text);
+  if (!loud && !hit) return;
+  let t0 = Math.max(uttStart, uttEnd - 3000);   // 長句子 → 只對準句尾前 3 秒
+  if (loud) { t0 = _momLoudAt; _momLoudAt = 0; if (_momLoudTimer) { clearTimeout(_momLoudTimer); _momLoudTimer = null; } }
+  triggerMoment(loud ? 'loud' : 'speech', String(text).slice(0, 40), t0);
 }
 
 // 跟雲端同步 AI 感知設定:開了就上工、關了就停、換等級就重載模型
@@ -1214,6 +1302,17 @@ async function syncPerception() {
     if (_visTier || _visStarting) stopVision();
     if (!_visLocalOn) setVisHint('已關閉 — 打開上面的開關啟用 AI 視覺');
     else if (!cfg.visionEnabled) setVisHint('桌面端已開,但後台「🧠 AI 感知」尚未開「看得到畫面」');
+  }
+
+  // --- 聲音觸發畫面判讀:桌面視覺開 AND 後台看得到畫面 AND 雲端旗標(momentsEnabled) ---
+  const momWant = Boolean(_visLocalOn && cfg.visionEnabled && cfg.momentsEnabled);
+  if (momWant && !_momOn) {
+    startMoments();
+    if (!(_sttLocalOn && cfg.sttEnabled)) {
+      appendLog({ level: 'warn', msg: '🎯 聲音觸發已開,但 AI 聽覺沒開 → 聽不到反應、不會觸發(後台開「聽得到主播」+ 這台 AI 聽覺)' });
+    }
+  } else if (!momWant && _momOn) {
+    stopMoments();
   }
 }
 
@@ -1373,6 +1472,7 @@ function setVisLocalOn(on) {
   if ($('vision-enabled')) $('vision-enabled').checked = on;
   paintQuick('qt-vision', '🖼️ AI 視覺', on);
   window.characast.setSettings({ vision: { enabled: on } });
+  if (!on) stopMoments();   // 關視覺 → 立刻停暫存 + 清空畫面(不等下次同步)
   if (!on && (_visTier || _visStarting)) { stopVision(); setVisHint('已關閉 — 打開開關啟用 AI 視覺'); }
   else syncPerception();
 }

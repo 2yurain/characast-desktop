@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('characast', {
   // Vision:跟 main 要 OBS 目前畫面縮圖(base64);CLIP 看完的短描述 → main → cloud
   getObsScreenshot: (opts) => ipcRenderer.invoke('obs:screenshot', opts),
   sendStreamerVision: (text) => ipcRenderer.send('streamer:vision', text),
+  // 聲音觸發畫面判讀:主播有反應時,把反應前後幾張畫面 → main → cloud(只在觸發時送)
+  sendVisionMoment: (payload) => ipcRenderer.send('streamer:moment', payload),
   onLog: (cb) => {
     const handler = (_e, entry) => cb(entry);
     ipcRenderer.on('log', handler);

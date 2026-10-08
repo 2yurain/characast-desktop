@@ -360,6 +360,23 @@ ipcMain.on('streamer:vision', (_e, text) => {
   if (!t || !cloud.isConnected()) return;
   cloud.send({ type: 'streamer.vision', text: t.slice(0, 200) });
 });
+
+// 聲音觸發畫面判讀:renderer 在主播有反應時送來 { reason, speech, frames:[{t, img}] } → 轉給 cloud。
+// 這裡再擋一次:最多 4 張、只收 JPEG data URL、單張 ≤ 600KB(雲端也會再驗)
+ipcMain.on('streamer:moment', (_e, payload) => {
+  if (!payload || !cloud.isConnected()) return;
+  const frames = (Array.isArray(payload.frames) ? payload.frames : [])
+    .filter((f) => typeof f?.img === 'string' && f.img.startsWith('data:image/jpeg;base64,') && f.img.length <= 600_000)
+    .slice(0, 4)
+    .map((f) => ({ t: Number(f.t) || 0, img: f.img }));
+  if (frames.length < 2) return;
+  cloud.send({
+    type: 'vision.moment',
+    reason: payload.reason === 'loud' ? 'loud' : 'speech',
+    speech: String(payload.speech || '').slice(0, 80),
+    frames,
+  });
+});
 // 本機測試:直接觸發某情緒對應的表情 hotkey
 ipcMain.handle('vts:test-expression', (_e, emotion) => {
   const map = (settings.get('vts') || {}).emotions || {};
