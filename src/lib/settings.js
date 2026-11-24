@@ -19,6 +19,7 @@ const store = new Store({
     cloudUrl: 'wss://characast.co/api/v1/desktop/ws',
     cloudHttpsUrl: 'https://characast.co',
     desktopToken: null,
+    nowPlaying: false,
     obs: {
       host: 'localhost',
       port: 4455,

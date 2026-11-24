@@ -8,6 +8,7 @@ const { app, BrowserWindow, ipcMain, session, desktopCapturer } = require('elect
 const path = require('path');
 const settings = require('./lib/settings');
 const { CloudClient } = require('./lib/cloudClient');
+const { NowPlayingWatcher } = require('./lib/nowPlayingWatcher');
 const { ObsClient } = require('./lib/obsClient');
 const { VtsClient } = require('./lib/vtsClient');
 const { Relay } = require('./lib/relay');
@@ -17,6 +18,8 @@ const { autoUpdater } = require('electron-updater');
 const cloud = new CloudClient();
 const obs = new ObsClient();
 const vts = new VtsClient();
+const npWatcher = new NowPlayingWatcher();
+const nowPlayingStatus = () => ({ enabled: settings.get('nowPlaying') === true, supported: process.platform === 'win32', current: npWatcher.current });
 let relay = null;
 let mainWindow = null;
 
@@ -81,7 +84,7 @@ ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('settings:get', () => settings.all());
 
 // renderer 只允許改這些 key(白名單,擋掉亂塞鍵 / 原型污染)
-const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance', 'mic', 'stt', 'vision', 'visionProfiles', 'visionHud', 'voice', 'coachLevels']);
+const SETTABLE_KEYS = new Set(['cloudUrl', 'cloudHttpsUrl', 'obs', 'vts', 'resonance', 'nowPlaying', 'mic', 'stt', 'vision', 'visionProfiles', 'visionHud', 'voice', 'coachLevels']);
 
 // Vision 框選區:每款遊戲一組 zones(畫面比例 0~1)。
 //   { [game]: { zones: [ { id, label, mode:'rate'|'ocr', rect:{x,y,w,h} } ] } }
@@ -163,6 +166,13 @@ ipcMain.handle('settings:set', (_e, patch) => {
         continue;
       }
       // resonance:只取已知欄位與型別,擋掉亂塞鍵 / 原型污染 / 巨型字串
+      if (k === 'nowPlaying') {
+        if (typeof v !== 'boolean') continue;
+        settings.set(k, v && process.platform === 'win32');
+        if (settings.get(k)) npWatcher.start();
+        else { npWatcher.stop(); cloud.send({ type: 'nowplaying', raw: '' }); }
+        continue;
+      }
       if (k === 'resonance') {
         const src = (v && typeof v === 'object') ? v : {};
         settings.set('resonance', {
@@ -206,6 +216,7 @@ ipcMain.handle('settings:set', (_e, patch) => {
 });
 
 ipcMain.handle('status:get', () => ({
+  nowPlaying: nowPlayingStatus(),
   cloud: cloud.getStatus(),
   obs: obs.getStatus(),
   vts: vts.getStatus(),
@@ -447,13 +458,14 @@ const SCENE_SRC = {
   overlay:     { key: 'overlay',     inputName: 'CharaCast 多功能overlay' },
   resonance:   { key: 'resonance',   inputName: 'CharaCast 聲音共鳴' },
   songqueue:   { key: 'songqueue',   inputName: 'CharaCast 點歌清單' },
+  nowplaying:  { key: 'nowplaying',  inputName: 'CharaCast 正在唱' },
   rebellionBg: { key: 'rebellionBg', inputName: 'CharaCast 叛變背景' },
 };
 // 不再放文字佔位(會爆大疊最上面);場景只建乾淨的 CharaCast overlay,遊戲/鏡頭主播自己加。
 const SCENE_TEMPLATES = {
   game: { name: '遊戲', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
   chat: { name: '聊天', sources: [SCENE_SRC.avatar, SCENE_SRC.overlay] },
-  sing: { name: '唱歌', sources: [SCENE_SRC.avatar, SCENE_SRC.resonance, SCENE_SRC.songqueue] },
+  sing: { name: '唱歌', sources: [SCENE_SRC.avatar, SCENE_SRC.resonance, SCENE_SRC.songqueue, SCENE_SRC.nowplaying] },
   // AI 叛變橋段:發動時自動切來、平叛切回。rebellionBg 放陣列最前 → 建場景時最先建 = z 序最底層(背景),小夏立繪/overlay 疊在上面
   rebellion: { name: '叛變', sources: [SCENE_SRC.rebellionBg, SCENE_SRC.avatar, SCENE_SRC.overlay] },
 };
@@ -544,6 +556,7 @@ app.whenReady().then(() => {
   const broadcastStatus = () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('status', {
+        nowPlaying: nowPlayingStatus(),
         cloud: cloud.getStatus(),
         obs: obs.getStatus(),
         vts: vts.getStatus(),
@@ -577,6 +590,19 @@ app.whenReady().then(() => {
   });
   relay.start();
 
+  // 正在唱:偵測播放器視窗標題(伴奏檔名)→ 雲端 → nowplaying overlay 顯示歌名 / 原唱。
+  // 主播開啟後才讀取播放器標題。重連時也送出空值，清掉過期歌名。
+  npWatcher.on('change', (raw) => {
+    cloud.send({ type: 'nowplaying', raw });
+    pushLog({ level: 'info', msg: raw ? `正在唱:${raw}` : '正在唱:播放器已停止' });
+    broadcastStatus();
+  });
+  npWatcher.on('log', pushLog);
+  cloud.on('status', () => {
+    if (settings.get('nowPlaying') === true && cloud.isConnected()) cloud.send({ type: 'nowplaying', raw: npWatcher.current });
+  });
+  if (settings.get('nowPlaying') === true) npWatcher.start();
+
   createWindow();
 
   // 開機自動嘗試連線
@@ -604,6 +630,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  npWatcher.stop();
   try { cloud.disconnect(); } catch {}
   try { obs.disconnect(); } catch {}
   try { vts.disconnect(); } catch {}

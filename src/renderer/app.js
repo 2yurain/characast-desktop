@@ -58,6 +58,13 @@ function setPill(el, state, label) {
 
 async function refreshStatusCards(s) {
   if (!s) s = await window.characast.getStatus();
+  if ($('np-status')) {
+    const np = s.nowPlaying || {};
+    $('np-status').textContent = !np.supported ? '此平台不支援播放器偵測，可使用後台手動設定或點唱清單。'
+      : !np.enabled ? '未啟用 · 使用手動設定或點唱清單'
+      : np.current ? `${s.cloud.authed ? '已送出歌名' : '等待雲端連線'}：${np.current}` : '偵測中 · 等待 PotPlayer / VLC 開啟歌曲';
+    $('np-enabled').disabled = !np.supported;
+  }
   // Cloud
   if (s.cloud.authed) setPill($('cloud-pill'), 'connected', '🟢 已連線');
   else if (s.cloud.readyState === 1) setPill($('cloud-pill'), 'connecting', '🟡 認證中');
@@ -126,6 +133,7 @@ $('vts-reconnect')?.addEventListener('click', () => window.characast.reconnectVt
 // ============== Settings ==============
 async function fillSettingsForm() {
   const s = await window.characast.getSettings();
+  if ($('np-enabled')) $('np-enabled').checked = s.nowPlaying === true;
   $('obs-host').value = s.obs?.host || 'localhost';
   $('obs-port').value = s.obs?.port || 4455;
   $('obs-password').value = s.obs?.password || '';
@@ -907,6 +915,16 @@ function setResoEnabled(on) {
 }
 
 $('reso-enabled')?.addEventListener('change', (e) => setResoEnabled(e.target.checked));
+$('np-enabled')?.addEventListener('change', async (e) => {
+  const enabled = e.target.checked;
+  try {
+    await window.characast.setSettings({ nowPlaying: enabled });
+    await refreshStatusCards();
+  } catch {
+    e.target.checked = !enabled;
+    $('np-status').textContent = '設定未儲存，請重試。';
+  }
+});
 $('qt-reso')?.addEventListener('click', () => setResoEnabled(!$('reso-enabled')?.checked));
 $('singcoach-btn')?.addEventListener('click', singCoachToggle);
 $('coach-send')?.addEventListener('click', _singCoachSend);

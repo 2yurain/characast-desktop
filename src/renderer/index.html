@@ -90,6 +90,13 @@
           <button type="button" id="sq-refresh" class="ghost">↻</button>
         </div>
         <div id="sq-list" style="margin-top:10px;font-size:13px;line-height:1.9;color:var(--text,#eee)"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2c2230)">
+          <div class="howto-title">正在唱 · 歌名同步</div>
+          <label class="check-row"><input id="np-enabled" type="checkbox"> <span>偵測 PotPlayer / VLC 的歌名（Windows）</span></label>
+          <div class="hint">開啟後只將播放器視窗標題傳給雲端，不傳伴奏檔案或聲音。建議檔名：歌名 - 原唱.mp3。暫停播放仍會顯示歌名；停止或關閉播放器才清除。</div>
+          <div class="hint" id="np-status" role="status">未啟用</div>
+          <div class="hint">後台 → OBS 畫面 →「正在唱」可手動改歌名、回到自動及複製 OBS 網址。需 Pro 以上。</div>
+        </div>
         <!-- 🎵 歌聲共鳴:同一張卡的下半段(抓共用麥 → 推 OBS 共鳴 overlay)-->
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line,#2c2230)">
           <div class="howto-title" style="margin-bottom:8px">🎵 歌聲共鳴</div>
