@@ -1312,8 +1312,13 @@ async function syncPerception() {
     else if (!cfg.sttEnabled) setSttHint('桌面端已開,但後台「🧠 AI 感知」尚未開「聽得到主播」');
   }
 
+  // --- Vision 是實驗功能:這個帳號不能用(雲端 visionAvailable=false)→ 開關整個藏起來,不讓人開了卻沒反應
+  //     舊版雲端沒帶這欄 → undefined → 照舊顯示
+  const visAvail = cfg.visionAvailable !== false;
+  for (const id of ['vision-section', 'qt-vision']) { const el = $(id); if (el) el.style.display = visAvail ? '' : 'none'; }
+
   // --- Vision(眼睛):桌面開關 AND 後台 AI 感知 ---
-  if (_visLocalOn && cfg.visionEnabled) {
+  if (visAvail && _visLocalOn && cfg.visionEnabled) {
     if (!_visTier) startVision(tier);
     else if (_visTier !== tier) { stopVision(); startVision(tier); }
   } else {
